@@ -1,0 +1,52 @@
+# Nightly database backup.
+#
+# Runs pg_dump against the production database at 02:00 UTC
+# and keeps 30 days of restorable archives as GitHub Actions
+# artifacts. Requires a SUPABASE_DB_URL repository secret —
+# use the *direct* connection string from
+# Supabase dashboard → Project Settings → Database →
+# Connection string → direct (not the pooler URL).
+#
+# Supabase Pro plans additionally offer point-in-time
+# recovery (7 days) from the dashboard — use both.
+
+name: Nightly database backup
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+env:
+  SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Dump the database
+        run: |
+          mkdir -p backups
+          pg_dump "$SUPABASE_DB_URL" \
+            --format=custom \
+            --file "backups/gym-sos-$(date -u +%Y%m%d-%H%M).dump"
+
+      - name: Verify the dump is restorable
+        run: |
+          for dump in backups/*.dump; do
+            test -s "$dump" || { echo "Empty dump: $dump"; exit 1; }
+          done
+          echo "$(du -sh backups | cut -f1) archived"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gym-sos-backup-${{ github.run_id }}
+          path: backups/
+          retention-days: 30
+          if-no-files-found: error
