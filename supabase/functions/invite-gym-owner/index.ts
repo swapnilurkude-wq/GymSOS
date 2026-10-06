@@ -1,141 +1,111 @@
-import { createClient } from "jsr:@supabase/supabase-js@2"
+import { getSupabase, isSupabaseConfigured } from "@/lib/supabase"
+import { fromGymRow, toGymPatch, toGymRow, type GymRow } from "@/lib/supabase-rows"
+import { STORAGE_KEYS, readStorage, writeStorage } from "@/lib/storage"
+import type { Gym, GymFormValues } from "@/types"
 
-/**
- * Creates (or updates) a gym-owner login account.
- *
- * Called by the super-admin gym form. Requires a signed-in
- * super-admin (verified from the caller's JWT) and runs with
- * the service role key, which must never reach the browser.
- *
- * Body: { gymId, gymName, ownerName, email, password? }
- * Returns: { userId, email, name, role, gymId, gymName }
- *
- * Deploy: supabase functions deploy invite-gym-owner
- */
+export async function getAllGyms(): Promise<Gym[]> {
+  if (isSupabaseConfigured()) {
+    const { data, error } = await getSupabase()
+      .from("gyms")
+      .select("*")
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-}
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  })
-}
-
-interface InviteRequest {
-  gymId?: string
-  gymName?: string
-  ownerName?: string
-  email?: string
-  password?: string
-}
-
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders })
-  if (req.method !== "POST") return json({ error: "Method not allowed." }, 405)
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
-  if (!supabaseUrl || !serviceKey) {
-    return json({ error: "Server is not configured." }, 500)
-  }
-
-  // 1. Verify the caller and require the super-admin role.
-  const token = req.headers.get("Authorization")?.replace("Bearer ", "")
-  if (!token) return json({ error: "Missing Authorization header." }, 401)
-
-  const caller = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-    auth: { persistSession: false },
-  })
-  const { data: callerData, error: callerError } = await caller.auth.getUser()
-  if (callerError || !callerData.user) {
-    return json({ error: "Unauthorized." }, 401)
-  }
-
-  const { data: profile } = await caller
-    .from("profiles")
-    .select("role")
-    .eq("id", callerData.user.id)
-    .maybeSingle()
-  if (!profile || profile.role !== "super-admin") {
-    return json({ error: "Only platform administrators can manage owner logins." }, 403)
-  }
-
-  // 2. Validate the payload.
-  let body: InviteRequest
-  try {
-    body = (await req.json()) as InviteRequest
-  } catch {
-    return json({ error: "Request body must be valid JSON." }, 400)
-  }
-
-  const { gymId, gymName, ownerName, email, password } = body
-  if (!gymId || !gymName || !ownerName || !email) {
-    return json({ error: "gymId, gymName, ownerName and email are required." }, 400)
-  }
-
-  const admin = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false },
-  })
-
-  // 3. If the gym already has an owner, update that account in place.
-  const { data: existing } = await admin
-    .from("profiles")
-    .select("id, email")
-    .eq("gym_id", gymId)
-    .eq("role", "gym-owner")
-    .maybeSingle()
-
-  if (existing) {
-    const emailChanged = existing.email?.toLowerCase() !== email.toLowerCase()
-    if (emailChanged || password) {
-      const { error: updateError } = await admin.auth.admin.updateUserById(existing.id, {
-        ...(emailChanged ? { email } : {}),
-        ...(password ? { password } : {}),
+    if (error) {
+      console.error("GYMS LOAD ERROR:", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
       })
-      if (updateError) return json({ error: updateError.message }, 400)
+
+      throw new Error(
+        `Gyms load failed: ${error.message} (code: ${error.code})`
+      )
     }
 
-    const { error: profileError } = await admin
-      .from("profiles")
-      .update({ name: ownerName, gym_name: gymName, email })
-      .eq("id", existing.id)
-    if (profileError) return json({ error: profileError.message }, 400)
-
-    return json({ userId: existing.id, email, name: ownerName, role: "gym-owner", gymId, gymName })
+    return ((data ?? []) as GymRow[]).map(fromGymRow)
   }
 
-  // 4. Refuse an email that already belongs to another account.
-  const { data: conflicting } = await admin
-    .from("profiles")
-    .select("id")
-    .eq("email", email.toLowerCase())
-    .maybeSingle()
-  if (conflicting) {
-    return json({ error: "That email already has a GymSOS account." }, 409)
+  return readStorage<Gym[]>(STORAGE_KEYS.gyms, [])
+}
+
+export async function createGym(values: GymFormValues): Promise<Gym> {
+  const gym: Gym = {
+    ...values,
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
   }
 
-  // 5. Create the auth user. The handle_new_user trigger
-  //    (migration 0002) provisions the profile row automatically.
-  const { data: authData, error: authError } = await admin.auth.admin.createUser({
-    email,
-    password: password ?? crypto.randomUUID(),
-    email_confirm: true,
-    user_metadata: { full_name: ownerName },
-  })
-  if (authError) return json({ error: authError.message }, 400)
+  if (isSupabaseConfigured()) {
+    const { data, error } = await getSupabase()
+      .from("gyms")
+      .insert(toGymRow(gym))
+      .select("*")
+      .single()
 
-  // 6. Link the new profile to the gym.
-  const { error: linkError } = await admin
-    .from("profiles")
-    .update({ role: "gym-owner", gym_id: gymId, gym_name: gymName, name: ownerName })
-    .eq("id", authData.user.id)
-  if (linkError) return json({ error: linkError.message }, 400)
+    if (error) throw error
 
-  return json({ userId: authData.user.id, email, name: ownerName, role: "gym-owner", gymId, gymName })
-})
+    return fromGymRow(data as GymRow)
+  }
+
+  writeStorage<Gym[]>(
+    STORAGE_KEYS.gyms,
+    [...readStorage<Gym[]>(STORAGE_KEYS.gyms, []), gym]
+  )
+
+  return gym
+}
+
+export async function updateGym(
+  id: string,
+  values: GymFormValues
+): Promise<Gym | null> {
+  if (isSupabaseConfigured()) {
+    const { data, error } = await getSupabase()
+      .from("gyms")
+      .update(toGymPatch(values))
+      .eq("id", id)
+      .select("*")
+      .maybeSingle()
+
+    if (error) throw error
+
+    return data ? fromGymRow(data as GymRow) : null
+  }
+
+  const all = readStorage<Gym[]>(STORAGE_KEYS.gyms, [])
+  const index = all.findIndex((g) => g.id === id)
+
+  if (index === -1) return null
+
+  const updated: Gym = {
+    ...all[index],
+    ...values,
+  }
+
+  const next = [...all]
+  next[index] = updated
+
+  writeStorage(STORAGE_KEYS.gyms, next)
+
+  return updated
+}
+
+export async function deleteGym(id: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    const { error } = await getSupabase()
+      .from("gyms")
+      .delete()
+      .eq("id", id)
+
+    if (error) throw error
+
+    return
+  }
+
+  writeStorage(
+    STORAGE_KEYS.gyms,
+    readStorage<Gym[]>(STORAGE_KEYS.gyms, []).filter(
+      (g) => g.id !== id
+    )
+  )
+}
