@@ -14,7 +14,11 @@ import type { AuthUser, Session } from "@/types"
 interface AuthContextValue {
   session: Session | null
   isLoading: boolean
-  login: (email: string, password: string) => Promise<{ ok: true } | { ok: false; message: string }>
+  login: (
+    email: string,
+    password: string,
+    remember?: boolean,
+  ) => Promise<{ ok: true } | { ok: false; message: string }>
   logout: () => void
   updateProfile: (updates: { name: string; avatarUrl?: string }) => Promise<void>
   updateSessionGymName: (gymName: string) => Promise<void>
@@ -105,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const login: AuthContextValue["login"] = async (email, password) => {
+  const login: AuthContextValue["login"] = async (email, password, remember = true) => {
     if (isSupabaseConfigured()) {
       const { data, error } = await getSupabase().auth.signInWithPassword({
         email: email.trim(),
@@ -134,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const users = readStorage<AuthUser[]>(STORAGE_KEYS.users, [])
     const match = users.find(
-      (u) => u.email.toLowerCase() === email.trim().toLowerCase() && u.password === password
+      (u) => u.email.toLowerCase() === email.trim().toLowerCase() && u.password === password,
     )
 
     if (!match) {
@@ -151,7 +155,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       gymName: match.gymName,
     }
 
-    writeStorage(STORAGE_KEYS.session, nextSession)
+    if (remember) {
+      writeStorage(STORAGE_KEYS.session, nextSession)
+    } else {
+      removeStorage(STORAGE_KEYS.session)
+    }
     setSession(nextSession)
     return { ok: true }
   }

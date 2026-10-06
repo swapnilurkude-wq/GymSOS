@@ -100,14 +100,15 @@ export default function LoginPage() {
     e.preventDefault()
     setError(null)
 
-    if (!email || !password) {
+    const normalizedEmail = email.trim()
+    if (!normalizedEmail || !password.trim()) {
       setError("Please enter both email and password.")
       return
     }
 
     setIsSubmitting(true)
     await new Promise((r) => setTimeout(r, 550))
-    const result = await login(email, password)
+    const result = await login(normalizedEmail, password, remember)
     setIsSubmitting(false)
 
     if (!result.ok) {
