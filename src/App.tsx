@@ -23,6 +23,7 @@ const PaymentsPage = lazy(() => import("@/pages/gym-owner/payments"))
 const GymOwnerReceiptsPage = lazy(() => import("@/pages/gym-owner/receipts"))
 const GymOwnerSettingsPage = lazy(() => import("@/pages/gym-owner/settings"))
 const GymOwnerReportsPage = lazy(() => import("@/pages/gym-owner/reports"))
+const ResetPasswordPage = lazy(() => import("@/pages/auth/reset-password"))
 
 function RootRedirect() {
   const { session, isLoading } = useAuth()
@@ -46,6 +47,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<RootRedirect />} />
         <Route path="/login" element={<LoginRoute />} />
+        {/* Email-link destination for "Forgot password?" — no session required. */}
+        <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
 
         <Route element={<ProtectedRoute allow={["super-admin"]} />}>
           <Route path="/super-admin" element={<DashboardLayout />}>

@@ -7,6 +7,9 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
+  ArrowLeft,
+  CheckCircle2,
+  MailCheck,
   ShieldCheck,
   Users,
   TrendingUp,
@@ -16,6 +19,7 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/context/auth-context"
 import { DEMO_CREDENTIALS } from "@/data/seed"
+import { getSupabase, isDemoMode, isSupabaseConfigured } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -42,6 +46,55 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Password-reset request ("Forgot password?")
+  const [view, setView] = useState<"login" | "forgot">("login")
+  const [resetEmail, setResetEmail] = useState("")
+  const [resetState, setResetState] = useState<"idle" | "sending" | "sent">(
+    "idle",
+  )
+  const [resetError, setResetError] = useState<string | null>(null)
+
+  // Set when redirected here after a successful password reset.
+  const [info] = useState<string | null>(
+    (location.state as { resetSuccess?: boolean } | null)?.resetSuccess
+      ? "Password updated — sign in with your new password."
+      : null,
+  )
+
+  async function handleForgotPassword(e: SyntheticEvent) {
+    e.preventDefault()
+    setResetError(null)
+
+    const target = resetEmail.trim()
+    if (!target) {
+      setResetError("Please enter your email address.")
+      return
+    }
+
+    setResetState("sending")
+    try {
+      if (isSupabaseConfigured()) {
+        const { error } = await getSupabase().auth.resetPasswordForEmail(
+          target,
+          {
+            redirectTo: `${window.location.origin}/auth/reset-password`,
+          },
+        )
+        if (error) throw error
+      } else {
+        // Demo mode has no mail server — the demo
+        // credentials shown below are the account.
+        await new Promise((r) => setTimeout(r, 400))
+      }
+      setResetState("sent")
+    } catch (error) {
+      setResetState("idle")
+      setResetError(
+        error instanceof Error ? error.message : "Couldn't send the reset link.",
+      )
+    }
+  }
 
   async function handleSubmit(e: SyntheticEvent) {
     e.preventDefault()
@@ -151,14 +204,120 @@ export default function LoginPage() {
         >
           <div className="mb-8 text-center sm:text-left">
             <h2 className="font-display text-[26px] font-bold tracking-tight text-foreground">
-              Welcome back
+              {view === "forgot" ? "Reset your password" : "Welcome back"}
             </h2>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              Sign in to manage your gym operations.
+              {view === "forgot"
+                ? "Enter the email you signed up with and we'll send a reset link."
+                : "Sign in to manage your gym operations."}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
+          {info && (
+            <div className="mb-5 flex items-start gap-2 rounded-lg border border-success/30 bg-success/10 px-3.5 py-2.5 text-sm text-success">
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+              {info}
+            </div>
+          )}
+
+          {view === "forgot" ? (
+            resetState === "sent" ? (
+              <div className="flex flex-col gap-4">
+                <div className="flex items-start gap-2 rounded-lg border border-success/30 bg-success/10 px-3.5 py-2.5 text-sm text-success">
+                  <MailCheck className="mt-0.5 size-4 shrink-0" />
+                  {isDemoMode()
+                    ? "This demo doesn't send email — in the hosted version, a reset link would arrive at " +
+                      resetEmail.trim() +
+                      "."
+                    : `Reset link sent to ${resetEmail.trim()} — check your inbox (and spam folder).`}
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setResetState("idle")
+                    setView("login")
+                  }}
+                >
+                  <ArrowLeft className="size-4" />
+                  Back to sign in
+                </Button>
+              </div>
+            ) : (
+              <form
+                onSubmit={handleForgotPassword}
+                className="flex flex-col gap-5"
+                noValidate
+              >
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="reset-email">Email address</Label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="you@yourgym.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+
+                <AnimatePresence>
+                  {resetError && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3.5 py-2.5 text-sm text-destructive">
+                        <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                        {resetError}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <Button
+                  type="submit"
+                  size="lg"
+                  disabled={resetState === "sending"}
+                  className="mt-1 w-full"
+                >
+                  {resetState === "sending" ? (
+                    <span className="flex items-center gap-2">
+                      <span className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                      Sending link…
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      Send reset link
+                      <ArrowRight className="size-4" />
+                    </span>
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="-ml-2 w-fit text-muted-foreground"
+                  onClick={() => {
+                    setResetState("idle")
+                    setResetError(null)
+                    setView("login")
+                  }}
+                >
+                  <ArrowLeft className="size-4" />
+                  Back to sign in
+                </Button>
+              </form>
+            )
+          ) : (
+            <>
+              <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
             <div className="flex flex-col gap-2">
               <Label htmlFor="email">Email address</Label>
               <div className="relative">
@@ -181,7 +340,12 @@ export default function LoginPage() {
                 <button
                   type="button"
                   className="text-xs font-medium text-primary hover:underline"
-                  onClick={() => setError("Password reset isn't available in this demo build.")}
+                  onClick={() => {
+                    setError(null)
+                    setResetError(null)
+                    setResetState("idle")
+                    setView("forgot")
+                  }}
                 >
                   Forgot password?
                 </button>
@@ -285,6 +449,8 @@ export default function LoginPage() {
           <p className="mt-8 text-center text-xs text-muted-foreground">
             GymSOS runs entirely in your browser — no data leaves this device.
           </p>
+            </>
+          )}
         </motion.div>
       </div>
     </div>
