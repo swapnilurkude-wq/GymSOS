@@ -42,6 +42,7 @@ class MockQueryBuilder {
   private filters: Array<{ column: string; value: unknown }> = []
   private pendingPatch: Row | null = null
   private pendingDelete = false
+  private pendingInsert: Row[] = []
 
   constructor(tableName: string, tables: Map<string, Table>) {
     this.tableName = tableName
@@ -75,10 +76,13 @@ class MockQueryBuilder {
       this.pendingDelete = false
       return []
     }
+
     const matching = this.matching()
     if (this.pendingPatch) {
       for (const row of matching) Object.assign(row, this.pendingPatch)
+      this.pendingPatch = null
     }
+
     return matching
   }
 
@@ -91,10 +95,10 @@ class MockQueryBuilder {
     return this
   }
 
-  insert(payload: Row | Row[]): Promise<{ data: null; error: null }> {
-    const rows = Array.isArray(payload) ? payload : [payload]
-    this.table().rows.push(...rows.map((row) => ({ ...row })))
-    return Promise.resolve({ data: null, error: null })
+  insert(payload: Row | Row[]): this {
+    this.pendingInsert = Array.isArray(payload) ? payload.map((row) => ({ ...row })) : [{ ...payload }]
+    this.table().rows.push(...this.pendingInsert)
+    return this
   }
 
   update(patch: Row): this {
@@ -102,7 +106,7 @@ class MockQueryBuilder {
     return this
   }
 
-  upsert(payload: Row | Row[]): Promise<{ data: null; error: null }> {
+  upsert(payload: Row | Row[]): this {
     const table = this.table()
     const rows = Array.isArray(payload) ? payload : [payload]
     for (const row of rows) {
@@ -115,7 +119,7 @@ class MockQueryBuilder {
         table.rows.push({ ...row })
       }
     }
-    return Promise.resolve({ data: null, error: null })
+    return this
   }
 
   delete(): this {
@@ -124,7 +128,10 @@ class MockQueryBuilder {
   }
 
   maybeSingle(): Promise<{ data: Row | null; error: null }> {
-    return Promise.resolve({ data: this.applyPendingPatch()[0] ?? null, error: null })
+    const rows = this.pendingInsert.length > 0 ? this.pendingInsert : this.applyPendingPatch()
+    const data = rows[rows.length - 1] ?? null
+    this.pendingInsert = []
+    return Promise.resolve({ data, error: null })
   }
 
   single(): Promise<{ data: Row | null; error: null }> {
@@ -138,7 +145,8 @@ class MockQueryBuilder {
       | null,
     onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
   ): Promise<TResult1 | TResult2> {
-    const matching = this.applyPendingPatch()
+    const matching = this.pendingInsert.length > 0 ? this.pendingInsert : this.applyPendingPatch()
+    this.pendingInsert = []
     return Promise.resolve({ data: matching, error: null }).then(
       onFulfilled,
       onRejected

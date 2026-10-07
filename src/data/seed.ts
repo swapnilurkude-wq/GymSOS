@@ -28,6 +28,42 @@ const DEMO_GYM_OWNER: AuthUser = {
 }
 
 /**
+ * Updates the existing demo Super Admin account when credentials change.
+ * Existing users, gyms and members are preserved.
+ */
+function migrateSuperAdminCredentials(): void {
+  const users = readStorage<AuthUser[]>(STORAGE_KEYS.users, [])
+
+  if (users.length === 0) return
+
+  const updatedUsers = users.map((user) => {
+    if (
+      user.id === SUPER_ADMIN.id ||
+      user.role === "super-admin"
+    ) {
+      return {
+        ...user,
+        email: SUPER_ADMIN.email,
+        password: SUPER_ADMIN.password,
+      }
+    }
+
+    return user
+  })
+
+  writeStorage<AuthUser[]>(STORAGE_KEYS.users, updatedUsers)
+
+  // Remove any saved session using the old Super Admin credentials.
+  const session = readStorage<{
+    userId?: string
+  } | null>(STORAGE_KEYS.session, null)
+
+  if (session?.userId === SUPER_ADMIN.id) {
+    writeStorage(STORAGE_KEYS.session, null)
+  }
+}
+
+/**
  * Seeds the demo dataset into localStorage.
  * Development (demo) mode only — production data is
  * seeded with supabase/seed.sql and lives in Postgres.
@@ -36,7 +72,14 @@ export async function ensureSeeded(): Promise<void> {
   if (!isDemoMode()) return
 
   const alreadySeeded = readStorage<boolean>(STORAGE_KEYS.seeded, false)
-  if (alreadySeeded) return
+
+  // If the app was already seeded previously, migrate the
+  // existing Super Admin credentials instead of reseeding
+  // and deleting/replacing existing data.
+  if (alreadySeeded) {
+    migrateSuperAdminCredentials()
+    return
+  }
 
   // Default receipt template first, so a failure here can't leave the
   // platform marked as seeded without it.
@@ -59,6 +102,12 @@ export async function ensureSeeded(): Promise<void> {
 }
 
 export const DEMO_CREDENTIALS = {
-  superAdmin: { email: SUPER_ADMIN.email, password: SUPER_ADMIN.password },
-  gymOwner: { email: DEMO_GYM_OWNER.email, password: DEMO_GYM_OWNER.password },
+  superAdmin: {
+    email: SUPER_ADMIN.email,
+    password: SUPER_ADMIN.password,
+  },
+  gymOwner: {
+    email: DEMO_GYM_OWNER.email,
+    password: DEMO_GYM_OWNER.password,
+  },
 }

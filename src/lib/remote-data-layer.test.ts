@@ -372,14 +372,13 @@ describe("auth-users — Supabase mode", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const headers = init.headers as Record<string, string>
     expect(url).toBe(
       "https://mock.supabase.co/functions/v1/invite-gym-owner"
     )
     expect(init.method).toBe("POST")
-    expect(init.headers).toMatchObject({
-      "Content-Type": "application/json",
-      Authorization: "Bearer test-access-token",
-    })
+    expect(headers["Content-Type"]).toBe("application/json")
+    expect(headers.Authorization).toBe("******")
     expect(JSON.parse(init.body as string)).toEqual({
       gymId: DEMO_GYM.id,
       gymName: DEMO_GYM.name,

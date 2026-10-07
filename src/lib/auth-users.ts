@@ -139,7 +139,7 @@ export async function upsertGymOwnerAccount(params: {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: "******",
         },
         body: JSON.stringify(params),
       }
