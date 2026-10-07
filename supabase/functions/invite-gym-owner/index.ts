@@ -51,9 +51,8 @@ Deno.serve(async (req: Request) => {
     )
   }
 
-  const token = req.headers
-    .get("Authorization")
-    ?.replace("Bearer ", "")
+  const authHeader = req.headers.get("Authorization")
+  const token = authHeader?.replace(/^Bearer\s+/i, "").trim()
 
   if (!token) {
     return json({ error: "Missing Authorization header." }, 401)
@@ -63,7 +62,7 @@ Deno.serve(async (req: Request) => {
   const caller = createClient(supabaseUrl, anonKey, {
     global: {
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${token}`
       },
     },
     auth: {
@@ -132,6 +131,10 @@ Deno.serve(async (req: Request) => {
       },
       400
     )
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: "Please provide a valid email address." }, 400)
   }
 
   // Validate gym UUID
@@ -280,13 +283,22 @@ Deno.serve(async (req: Request) => {
     )
   }
 
+  if (!password) {
+    return json(
+      {
+        error: "A password is required to create a new owner login.",
+      },
+      400
+    )
+  }
+
   // Create Auth user
   const {
     data: authData,
     error: authError,
   } = await admin.auth.admin.createUser({
     email,
-    password: password ?? crypto.randomUUID(),
+    password,
     email_confirm: true,
     user_metadata: {
       full_name: ownerName,
