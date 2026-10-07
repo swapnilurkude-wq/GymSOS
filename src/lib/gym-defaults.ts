@@ -1,8 +1,6 @@
 import type { Gym, GymFormValues } from "@/types"
 
 export function blankGymValues(): GymFormValues {
-  const end = new Date()
-  end.setMonth(end.getMonth() + 1)
   return {
     name: "",
     location: "",
@@ -12,7 +10,8 @@ export function blankGymValues(): GymFormValues {
     ownerEmail: "",
     ownerContact: "",
     memberCount: 0,
-    subscriptionEndDate: end.toISOString(),
+    // No default renewal date — the admin sets it.
+    subscriptionEndDate: "",
   }
 }
 

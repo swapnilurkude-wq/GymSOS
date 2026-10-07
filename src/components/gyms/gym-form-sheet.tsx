@@ -81,6 +81,10 @@ export function GymFormSheet({ open, onOpenChange, gym, existingAccount, onSave 
   const passwordProvided = password.trim().length > 0
   const passwordValid = !passwordProvided || password.trim().length >= 6
 
+  const subscriptionEndDateValid =
+    values.subscriptionEndDate.length > 0 &&
+    !Number.isNaN(new Date(values.subscriptionEndDate).getTime())
+
   const canSubmit =
     values.name.trim().length > 0 &&
     values.location.trim().length > 0 &&
@@ -88,6 +92,7 @@ export function GymFormSheet({ open, onOpenChange, gym, existingAccount, onSave 
     values.ownerEmail.trim().length > 0 &&
     !emailConflict &&
     passwordValid &&
+    subscriptionEndDateValid &&
     (!isCreating || passwordProvided)
 
   const planFeatures = getPlanFeatures(values.plan)
@@ -311,13 +316,25 @@ export function GymFormSheet({ open, onOpenChange, gym, existingAccount, onSave 
                   </Select>
                 </div>
                 <div className="flex flex-col gap-2 sm:col-span-2">
-                  <Label htmlFor="sub-end">Subscription renews / expires on</Label>
+                  <Label htmlFor="sub-end">Subscription renews / expires on *</Label>
                   <Input
                     id="sub-end"
                     type="date"
                     value={toInputDate(values.subscriptionEndDate)}
-                    onChange={(e) => update("subscriptionEndDate", new Date(e.target.value).toISOString())}
+                    onChange={(e) =>
+                      update(
+                        "subscriptionEndDate",
+                        e.target.value
+                          ? new Date(e.target.value).toISOString()
+                          : ""
+                      )
+                    }
                   />
+                  {!subscriptionEndDateValid && (
+                    <p className="text-xs text-destructive">
+                      Choose when this subscription renews or expires.
+                    </p>
+                  )}
                 </div>
               </div>
             </section>

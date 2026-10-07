@@ -2,29 +2,30 @@ import { describe, expect, it } from "vitest"
 import { changePlanValues, renewSubscriptionValues, toggleSuspendValues } from "@/lib/subscription"
 import { isoDaysFromNow, makeGym } from "@/test/helpers"
 
-const DAY_MS = 24 * 60 * 60 * 1000
-
 describe("renewSubscriptionValues", () => {
-  it("extends an expired subscription starting today", () => {
-    const gym = makeGym({ subscriptionEndDate: isoDaysFromNow(-10) })
-    const next = renewSubscriptionValues(gym)
+  it("uses the manually chosen renewal date and reactivates the gym", () => {
+    const gym = makeGym({
+      subscriptionEndDate: isoDaysFromNow(-10),
+      status: "expired",
+    })
+    const chosenDate = isoDaysFromNow(60)
+    const next = renewSubscriptionValues(gym, chosenDate)
 
-    const end = new Date(next.subscriptionEndDate).getTime()
-    const deltaDays = (end - Date.now()) / DAY_MS
-    expect(deltaDays).toBeGreaterThan(25)
-    expect(deltaDays).toBeLessThan(35)
+    expect(next.subscriptionEndDate).toBe(chosenDate)
     expect(next.status).toBe("active")
     expect(next.name).toBe(gym.name)
   })
 
-  it("extends an active subscription from its current end date", () => {
+  it("leaves every other gym field untouched", () => {
     const gym = makeGym({ subscriptionEndDate: isoDaysFromNow(90) })
-    const next = renewSubscriptionValues(gym)
+    const chosenDate = isoDaysFromNow(120)
+    const next = renewSubscriptionValues(gym, chosenDate)
 
-    const end = new Date(next.subscriptionEndDate).getTime()
-    const deltaDays = (end - Date.now()) / DAY_MS
-    expect(deltaDays).toBeGreaterThan(115)
-    expect(deltaDays).toBeLessThan(125)
+    expect(next.subscriptionEndDate).toBe(chosenDate)
+    expect(next.location).toBe(gym.location)
+    expect(next.ownerEmail).toBe(gym.ownerEmail)
+    expect(next.memberCount).toBe(gym.memberCount)
+    expect(next.plan).toBe(gym.plan)
   })
 })
 

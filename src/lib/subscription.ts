@@ -1,17 +1,15 @@
 import { gymToFormValues } from "@/lib/gym-defaults"
 import type { Gym, GymFormValues, GymPlan } from "@/types"
 
-export function renewSubscriptionValues(gym: Gym): GymFormValues {
-  const base = new Date(gym.subscriptionEndDate)
-  const now = new Date()
-  const start = base.getTime() > now.getTime() ? base : now
-  const nextEnd = new Date(start)
-  nextEnd.setMonth(nextEnd.getMonth() + 1)
-
+/**
+ * Renewal is fully manual: the admin chooses the new
+ * date — nothing is added or calculated automatically.
+ */
+export function renewSubscriptionValues(gym: Gym, newEndDate: string): GymFormValues {
   return {
     ...gymToFormValues(gym),
     status: "active",
-    subscriptionEndDate: nextEnd.toISOString(),
+    subscriptionEndDate: new Date(newEndDate).toISOString(),
   }
 }
 

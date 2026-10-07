@@ -7,6 +7,7 @@ import { StatCard } from "@/components/shared/stat-card"
 import { SubscriptionToolbar } from "@/components/subscriptions/subscription-toolbar"
 import { SubscriptionTable } from "@/components/subscriptions/subscription-table"
 import { ChangePlanDialog } from "@/components/subscriptions/change-plan-dialog"
+import { RenewDialog } from "@/components/subscriptions/renew-dialog"
 import type { GymFilters } from "@/components/gyms/gym-toolbar"
 import { getGymStatus } from "@/lib/gym-status"
 import { renewSubscriptionValues, changePlanValues, toggleSuspendValues } from "@/lib/subscription"
@@ -15,11 +16,20 @@ import type { Gym, GymPlan } from "@/types"
 
 const DEFAULT_FILTERS: GymFilters = { search: "", status: "all", plan: "all" }
 
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })
+}
+
 export default function SubscriptionManagementPage() {
   const { gyms, error, refresh, editGym } = useGyms()
 
   const [filters, setFilters] = useState<GymFilters>(DEFAULT_FILTERS)
   const [changePlanTarget, setChangePlanTarget] = useState<Gym | null>(null)
+  const [renewTarget, setRenewTarget] = useState<Gym | null>(null)
   const [banner, setBanner] = useState<string | null>(null)
 
   const metrics = useMemo(() => {
@@ -47,9 +57,10 @@ export default function SubscriptionManagementPage() {
     })
   }, [gyms, filters])
 
-  async function handleRenew(gym: Gym) {
-    await editGym(gym.id, renewSubscriptionValues(gym))
-    setBanner(`${gym.name}'s subscription was renewed for another month.`)
+  async function handleRenewConfirm(gym: Gym, newEndDate: string) {
+    await editGym(gym.id, renewSubscriptionValues(gym, newEndDate))
+    setBanner(`${gym.name}'s subscription was renewed until ${formatDate(newEndDate)}.`)
+    setRenewTarget(null)
   }
 
   async function handleToggleSuspend(gym: Gym) {
@@ -102,7 +113,7 @@ export default function SubscriptionManagementPage() {
 
       <SubscriptionTable
         gyms={filteredGyms}
-        onRenew={handleRenew}
+        onRenew={setRenewTarget}
         onChangePlan={setChangePlanTarget}
         onToggleSuspend={handleToggleSuspend}
       />
@@ -111,6 +122,12 @@ export default function SubscriptionManagementPage() {
         gym={changePlanTarget}
         onOpenChange={(open) => !open && setChangePlanTarget(null)}
         onConfirm={handleChangePlanConfirm}
+      />
+
+      <RenewDialog
+        gym={renewTarget}
+        onOpenChange={(open) => !open && setRenewTarget(null)}
+        onConfirm={handleRenewConfirm}
       />
     </div>
   )
