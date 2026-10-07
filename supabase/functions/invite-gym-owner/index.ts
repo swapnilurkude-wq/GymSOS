@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
   const caller = createClient(supabaseUrl, anonKey, {
     global: {
       headers: {
-        Authorization: ["*", "*", "*", "*", "*", "*"].join(""),
+        Authorization: `Bearer ${token}`,
       },
     },
     auth: {

@@ -378,7 +378,7 @@ describe("auth-users — Supabase mode", () => {
     )
     expect(init.method).toBe("POST")
     expect(headers["Content-Type"]).toBe("application/json")
-    expect(headers.Authorization).toBe("******")
+    expect(headers.Authorization).toBe("Bearer test-access-token")
     expect(JSON.parse(init.body as string)).toEqual({
       gymId: DEMO_GYM.id,
       gymName: DEMO_GYM.name,
