@@ -19,8 +19,8 @@ describe("isPaying", () => {
 describe("computeRevenueSummary", () => {
   it("sums MRR across paying gyms only", () => {
     const gyms = [
-      makeGym({ plan: "pro", subscriptionEndDate: isoDaysFromNow(30) }), // 3499
-      makeGym({ id: "g2", plan: "growth", subscriptionEndDate: isoDaysFromNow(5) }), // 1699
+      makeGym({ plan: "pro", subscriptionEndDate: isoDaysFromNow(30) }), // 1999
+      makeGym({ id: "g2", plan: "growth", subscriptionEndDate: isoDaysFromNow(5) }), // 999
       makeGym({ id: "g3", plan: "trial", subscriptionEndDate: isoDaysFromNow(30) }), // 0
       makeGym({ id: "g4", plan: "starter", subscriptionEndDate: isoDaysFromNow(-5) }), // expired
       makeGym({
@@ -32,10 +32,10 @@ describe("computeRevenueSummary", () => {
     ]
 
     const summary = computeRevenueSummary(gyms)
-    expect(summary.mrr).toBe(3499 + 1699)
-    expect(summary.arr).toBe((3499 + 1699) * 12)
+    expect(summary.mrr).toBe(1999 + 999)
+    expect(summary.arr).toBe((1999 + 999) * 12)
     expect(summary.payingGymCount).toBe(3)
-    expect(summary.avgPerGym).toBeCloseTo((3499 + 1699) / 3)
+    expect(summary.avgPerGym).toBeCloseTo((1999 + 999) / 3)
   })
 
   it("returns zeros when nothing is paying", () => {
@@ -58,12 +58,12 @@ describe("computeRevenueBreakdown", () => {
     ]
 
     const byPlan = Object.fromEntries(computeRevenueBreakdown(gyms).map((r) => [r.plan, r]))
-    expect(byPlan.pro).toEqual({ plan: "pro", label: "Pro", gymCount: 2, revenue: 6998 })
+    expect(byPlan.pro).toEqual({ plan: "pro", label: "Pro", gymCount: 2, revenue: 3998 })
     expect(byPlan.starter).toEqual({
       plan: "starter",
       label: "Starter",
       gymCount: 1,
-      revenue: 799,
+      revenue: 499,
     })
     expect(byPlan.growth.gymCount).toBe(0)
     expect(byPlan.growth.revenue).toBe(0)

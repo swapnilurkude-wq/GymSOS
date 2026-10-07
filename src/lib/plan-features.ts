@@ -24,14 +24,14 @@ export const PLAN_FEATURES: Record<GymPlan, PlanFeatures> = {
     reports: false,
   },
   starter: {
-    maxMembers: 150,
+    maxMembers: 100,
     excelExport: true,
     excelImport: false,
     pdfReceipts: true,
     reports: false,
   },
   growth: {
-    maxMembers: 500,
+    maxMembers: 300,
     excelExport: true,
     excelImport: true,
     pdfReceipts: true,

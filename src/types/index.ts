@@ -5,9 +5,9 @@ export type GymStatus = "active" | "suspended" | "expired"
 
 export const GYM_PLAN_FEE: Record<GymPlan, number> = {
   trial: 0,
-  starter: 799,
-  growth: 1699,
-  pro: 3499,
+  starter: 499,
+  growth: 999,
+  pro: 1999,
 }
 
 export interface Gym {
