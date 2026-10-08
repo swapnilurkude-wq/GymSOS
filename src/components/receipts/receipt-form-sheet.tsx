@@ -25,8 +25,9 @@ import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/format"
 import { blankReceiptValues, receiptToFormValues, addMonths } from "@/lib/receipt-defaults"
 import { computeReceiptBalance, computeReceiptStatus, getReceiptsByMember } from "@/lib/receipts"
-import { PLAN_DURATION_MONTHS, RECEIPT_PARTICULAR_LABEL } from "@/types"
+import { GENDER_LABEL, PLAN_DURATION_MONTHS, RECEIPT_PARTICULAR_LABEL } from "@/types"
 import type {
+  Gender,
   Gym,
   Member,
   MembershipPlan,
@@ -84,7 +85,14 @@ export function ReceiptFormSheet({
     if (open) {
       setIsNewMember(isMemberVariant)
       setValues(
-        receipt ? receiptToFormValues(receipt) : { ...blankReceiptValues(), receiverSignature: defaultReceiverName }
+        receipt
+          ? {
+              ...receiptToFormValues(receipt),
+              gender:
+                members.find((m) => m.id === receipt.memberId)?.gender ??
+                "other",
+            }
+          : { ...blankReceiptValues(), receiverSignature: defaultReceiverName }
       )
     }
   }, [open, receipt, defaultReceiverName, isMemberVariant])
@@ -132,6 +140,7 @@ export function ReceiptFormSheet({
       memberName: member.name,
       memberContact: member.contactNumber,
       memberDob: latest?.memberDob ?? prev.memberDob,
+      gender: member.gender,
     }))
   }
 
@@ -300,6 +309,25 @@ export function ReceiptFormSheet({
                       update("memberDob", e.target.value ? new Date(e.target.value).toISOString() : "")
                     }
                   />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="receipt-gender">Gender</Label>
+                  <Select
+                    value={values.gender}
+                    onValueChange={(v) => update("gender", v as Gender)}
+                    disabled={isEditing || !isNewMember}
+                  >
+                    <SelectTrigger id="receipt-gender">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(GENDER_LABEL) as Gender[]).map((g) => (
+                        <SelectItem key={g} value={g}>
+                          {GENDER_LABEL[g]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </section>

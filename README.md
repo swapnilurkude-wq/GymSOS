@@ -69,6 +69,7 @@ require `VITE_SUPABASE_*` — see the migration plan below.
    - `supabase/migrations/0001_init.sql` (tables, RLS, triggers)
    - `supabase/migrations/0002_profile_email_and_counters.sql` (profile email sync, atomic receipt counters)
    - `supabase/migrations/0003_trial_access.sql` (trial gate, signup RPC, owner-mobile uniqueness)
+   - `supabase/migrations/0004_member_gender_undisclosed.sql` (fourth gender option: "Prefer not to say")
 3. **SQL Editor** → run `supabase/seed.sql` (demo gyms, members, template, counters)
 
 ### 2. Create the login accounts

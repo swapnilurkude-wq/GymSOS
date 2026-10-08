@@ -143,6 +143,7 @@ export function receiptValuesFromMember(member: Member): ReceiptFormValues {
     memberName: member.name,
     memberContact: member.contactNumber,
     memberDob: "",
+    gender: member.gender,
     particular: member.memberType,
     plan: member.plan,
     durationMonths: member.durationMonths,

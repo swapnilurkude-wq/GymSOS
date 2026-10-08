@@ -48,7 +48,7 @@ export interface Session {
   gymName?: string
 }
 
-export type Gender = "male" | "female" | "other"
+export type Gender = "male" | "female" | "other" | "undisclosed"
 export type MemberType = "new" | "renewal"
 export type MembershipPlan = "Monthly" | "Quarterly" | "Half-Yearly" | "Annual"
 export type PaymentMode = "cash" | "online" | "mixed"
@@ -103,6 +103,13 @@ export const RECEIPT_PARTICULAR_LABEL: Record<ReceiptParticular, string> = {
   renewal: "Renewal",
   "add-on": "Add-on",
   facility: "Facility",
+}
+
+export const GENDER_LABEL: Record<Gender, string> = {
+  male: "Male",
+  female: "Female",
+  other: "Other",
+  undisclosed: "Prefer not to say",
 }
 
 export interface ReceiptTemplate {
@@ -162,7 +169,10 @@ export interface Receipt {
 export type ReceiptFormValues = Omit<
   Receipt,
   "id" | "gymId" | "receiptNumber" | "balanceAmount" | "status" | "createdAt" | "updatedAt"
->
+> & {
+  /** Member master data captured alongside the receipt. */
+  gender: Gender
+}
 
 export type NotificationTone = "default" | "success" | "warning" | "destructive"
 

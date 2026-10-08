@@ -1,4 +1,4 @@
-import { PLAN_DURATION_MONTHS } from "@/types"
+import { GENDER_LABEL, PLAN_DURATION_MONTHS } from "@/types"
 import type { Member, MemberFormValues, MembershipPlan } from "@/types"
 
 // xlsx is large (~400 kB) and only needed for user-triggered exports and
@@ -49,7 +49,7 @@ export async function exportMembersToExcel(members: Member[], gymName: string): 
     "Receipt No": m.receiptNumber,
     Name: m.name,
     Contact: m.contactNumber,
-    Gender: m.gender,
+    Gender: GENDER_LABEL[m.gender] ?? m.gender,
     Address: m.address,
     Type: m.memberType === "new" ? "New" : "Renewal",
     Plan: m.plan,
@@ -134,6 +134,14 @@ function parseDate(value: string | undefined, fallback: Date): string {
   return Number.isNaN(parsed.getTime()) ? fallback.toISOString() : parsed.toISOString()
 }
 
+function parseGender(raw: string | undefined): MemberFormValues["gender"] {
+  const value = raw?.trim().toLowerCase()
+  if (value === "prefer not to say" || value === "undisclosed") {
+    return "undisclosed"
+  }
+  return (value as MemberFormValues["gender"]) || "male"
+}
+
 export async function parseMembersFromExcelFile(file: File): Promise<ImportResult> {
   const XLSX = await import("xlsx")
   const buffer = await file.arrayBuffer()
@@ -176,7 +184,7 @@ export async function parseMembersFromExcelFile(file: File): Promise<ImportResul
     rows.push({
       name,
       contactNumber,
-      gender: (raw.Gender?.toLowerCase() as MemberFormValues["gender"]) || "male",
+      gender: parseGender(raw.Gender),
       address: String(raw.Address ?? ""),
       memberType: String(raw.Type ?? "New").toLowerCase() === "renewal" ? "renewal" : "new",
       plan,

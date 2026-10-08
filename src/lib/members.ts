@@ -108,7 +108,7 @@ export function memberValuesFromReceiptForm(values: ReceiptFormValues): MemberFo
     photoUrl: undefined,
     name: values.memberName,
     contactNumber: values.memberContact,
-    gender: "other",
+    gender: values.gender,
     address: "",
     memberType: values.particular === "renewal" ? "renewal" : "new",
     plan: values.plan,

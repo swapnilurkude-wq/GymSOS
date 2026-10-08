@@ -1,5 +1,6 @@
 import { formatCurrency, formatCurrencyPdfSafe } from "@/lib/format"
-import type { Member } from "@/types"
+import type { Gender, Member } from "@/types"
+import { GENDER_LABEL } from "@/types"
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
@@ -30,7 +31,7 @@ function receiptRows(
     ["Payment Date", formatDate(member.paymentDate)],
     ["Member Name", member.name],
     ["Contact Number", member.contactNumber],
-    ["Gender", member.gender.charAt(0).toUpperCase() + member.gender.slice(1)],
+    ["Gender", GENDER_LABEL[member.gender as Gender] ?? member.gender],
     ["Address", member.address || "—"],
     ["Membership Type", member.memberType === "new" ? "New Member" : "Renewal"],
     ["Plan", `${member.plan} (${member.durationMonths} month${member.durationMonths > 1 ? "s" : ""})`],
