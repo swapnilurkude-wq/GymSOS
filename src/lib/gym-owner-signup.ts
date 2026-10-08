@@ -39,13 +39,17 @@ export async function signUpGymOwner(
   input: GymOwnerSignupInput
 ): Promise<GymOwnerSignupResult> {
   if (isSupabaseConfigured()) {
+    // The Edge Function is protected by JWT verification —
+    // the anon key is sent as a Bearer token (Supabase
+    // verifies it as the "anon" role), so the public
+    // signup page can call it without a user session.
     const response = await fetch(
       `${SUPABASE_URL}/functions/v1/gym-owner-signup`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify(input),
       }
@@ -56,7 +60,7 @@ export async function signUpGymOwner(
       throw new Error(
         typeof payload.error === "string"
           ? payload.error
-          : "Couldn't create your account. Please try again."
+          : `Couldn't create your account (HTTP ${response.status}). Please try again.`
       )
     }
 

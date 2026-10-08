@@ -47,7 +47,7 @@ describe("gym owner signup — Supabase mode", () => {
     expect(url).toBe("https://mock.supabase.co/functions/v1/gym-owner-signup")
     expect(init.method).toBe("POST")
     expect(headers["Content-Type"]).toBe("application/json")
-    expect(headers.apikey).toBe("mock-anon-key")
+    expect(headers.Authorization).toBe("Bearer mock-anon-key")
     expect(JSON.parse(init.body as string)).toEqual(VALID)
 
     vi.unstubAllGlobals()
@@ -70,15 +70,16 @@ describe("gym owner signup — Supabase mode", () => {
     vi.unstubAllGlobals()
   })
 
-  it("falls back to a generic error when the response carries no message", async () => {
+  it("falls back to a generic error with the HTTP status", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
+      status: 502,
       json: async () => ({}),
     })
     vi.stubGlobal("fetch", fetchMock)
 
     await expect(signUpGymOwner(VALID)).rejects.toThrow(
-      "Couldn't create your account. Please try again."
+      "Couldn't create your account (HTTP 502). Please try again."
     )
 
     vi.unstubAllGlobals()
