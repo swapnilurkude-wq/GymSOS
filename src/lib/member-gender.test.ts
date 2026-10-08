@@ -5,14 +5,12 @@ import type { Gender } from "@/types"
 
 describe("member gender capture", () => {
   it("carries the chosen gender into the member record", () => {
-    const values: typeof blankReceiptValues = {
+    const member = memberValuesFromReceiptForm({
       ...blankReceiptValues(),
       memberName: "New Member",
       memberContact: "9820000000",
-      gender: "undisclosed" satisfies Gender,
-    }
-
-    const member = memberValuesFromReceiptForm(values)
+      gender: "undisclosed",
+    })
 
     expect(member.gender).toBe("undisclosed")
     expect(member.name).toBe("New Member")
