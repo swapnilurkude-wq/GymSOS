@@ -2,7 +2,7 @@ import { getMembersByGym } from "@/lib/members"
 import { getAllGyms } from "@/lib/gyms"
 import { getReceiptsByGym, getAllReceipts } from "@/lib/receipts"
 import { getMemberStatus } from "@/lib/member-status"
-import { getGymStatus } from "@/lib/gym-status"
+import { getGymStatus, getTrialState, trialDaysRemaining } from "@/lib/gym-status"
 import { formatCurrency } from "@/lib/format"
 import type { NotificationPreferences } from "@/hooks/use-preferences"
 import type { AppNotification } from "@/types"
@@ -27,11 +27,37 @@ export async function computeGymOwnerNotifications(
 ): Promise<AppNotification[]> {
   if (!gymId) return []
 
-  const [members, receipts] = await Promise.all([
+  const [members, receipts, gyms] = await Promise.all([
     getMembersByGym(gymId),
     getReceiptsByGym(gymId),
+    getAllGyms(),
   ])
   const items: AppNotification[] = []
+
+  // Free-trial reminders. The trial end date comes
+  // from the gym row in the database, so the
+  // countdown can't be extended from the browser.
+  const gym = gyms.find((g) => g.id === gymId)
+  if (gym && getTrialState(gym) === "trial-active") {
+    const days = trialDaysRemaining(gym)
+    if (days === 1) {
+      items.push({
+        id: `trial-tomorrow-${gym.id}`,
+        title: "Your free trial expires tomorrow.",
+        time: gym.subscriptionEndDate,
+        tone: "warning",
+        link: "/gym-owner/settings",
+      })
+    } else if (days <= 3) {
+      items.push({
+        id: `trial-expiring-${gym.id}`,
+        title: `Your free trial expires in ${days} days.`,
+        time: gym.subscriptionEndDate,
+        tone: "warning",
+        link: "/gym-owner/settings",
+      })
+    }
+  }
 
   if (preferences.renewalReminders) {
     for (const m of members) {
@@ -147,10 +173,13 @@ export async function computeSuperAdminNotifications(
     if (isRecent(g.createdAt, 7)) {
       items.push({
         id: `new-gym-${g.id}`,
-        title: `New gym onboarded: ${g.name}`,
+        title:
+          g.plan === "trial"
+            ? `${g.name} started a 10-day free trial`
+            : `New gym onboarded: ${g.name}`,
         time: g.createdAt,
         tone: "default",
-        link: "/super-admin/gyms",
+        link: g.plan === "trial" ? "/super-admin/subscriptions" : "/super-admin/gyms",
       })
     }
   }

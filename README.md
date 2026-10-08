@@ -11,18 +11,24 @@ platform super-admin (gyms, plans, revenue analytics, subscriptions).
 - Receipts: print or download PDF, per-gym receipt template
 - Dashboard KPIs, revenue trend, plan mix, renewal and payment alerts
 - Plan-gated features (trial / starter / growth / pro)
+- **Self-signup with a 10-day free trial** — public signup
+  page, automatic account + gym creation, trial countdown on
+  the dashboard, upgrade screen after expiry
 
 **Super admin**
 - Platform dashboard: MRR, active gyms, member totals, alerts
 - Gym management: create gyms, change plans, suspend, issue credentials
 - Revenue analytics by plan, revenue trend, plan mix
 - Subscription management, platform-wide receipt ledger
+- **Trial overview** — signup counts, active / expiring /
+  expired trials, and a full Trial Signups table (gym, owner,
+  mobile, email, signup + trial dates, status)
 
 **Platform**
 - Responsive on mobile, tablet, and laptop
 - Dark / light theme
 - Code-split bundles (maps, Excel, PDF load on demand)
-- 98 automated tests (`npm test`) — including the Supabase data-layer
+- 116 automated tests (`npm test`) — including the Supabase data-layer
   paths, exercised against an in-memory client
   (`src/test/supabase-mock.ts`)
 
@@ -62,6 +68,7 @@ require `VITE_SUPABASE_*` — see the migration plan below.
 2. **SQL Editor** → run the migrations **in order**:
    - `supabase/migrations/0001_init.sql` (tables, RLS, triggers)
    - `supabase/migrations/0002_profile_email_and_counters.sql` (profile email sync, atomic receipt counters)
+   - `supabase/migrations/0003_trial_access.sql` (trial gate, signup RPC, owner-mobile uniqueness)
 3. **SQL Editor** → run `supabase/seed.sql` (demo gyms, members, template, counters)
 
 ### 2. Create the login accounts
@@ -100,19 +107,29 @@ vercel --prod
 The SPA is configured in `vercel.json` (Vite framework, client-side routing
 rewrites).
 
-### 5. Deploy the owner-invite Edge Function
+### 5. Deploy the Edge Functions
 
-The super-admin gym form creates owner logins through a
-server-side function (the service role key never reaches the
-browser):
+Two server-side functions (the service role key never
+reaches the browser):
 
 ```bash
 supabase functions deploy invite-gym-owner
+supabase functions deploy gym-owner-signup
 ```
 
-It verifies the caller's JWT, requires the `super-admin` role,
-creates (or updates) the auth user, and links the profile to
-the gym — so the whole invite flow works from the app.
+- **invite-gym-owner** — the super-admin gym form creates
+  owner logins through it. It verifies the caller's JWT,
+  requires the `super-admin` role, creates (or updates) the
+  auth user, and links the profile to the gym.
+- **gym-owner-signup** — the public signup page
+  (`/signup`) creates a new gym owner's account, their gym
+  and a 10-day free trial entirely server-side. It is
+  called with the anon key (Supabase verifies it as the
+  "anon" role), validates every field, rejects duplicate
+  emails and mobiles, and computes the trial end from SQL
+  `now()` — never from the browser. The auth trigger
+  assigns the `gym-owner` role, so a public signup can
+  never become a super-admin.
 
 ### 6. Preview (staging) deployments
 
@@ -135,7 +152,7 @@ src/
   types/        Shared TypeScript types (single source of truth)
 supabase/
   migrations/   Schema with row-level security
-  functions/    Edge Functions (invite-gym-owner)
+  functions/    Edge Functions (invite-gym-owner, gym-owner-signup)
   seed.sql      Demo data
   link-demo-profiles.sql  Attaches demo auth users to profiles
 .github/workflows/
@@ -150,6 +167,7 @@ supabase/
 | 2 | Auth via Supabase Auth (`profiles` table); `src/lib/*` data modules dual-mode (Supabase when `VITE_SUPABASE_*` is set, localStorage otherwise); async hooks with loading states | ✅ done |
 | 3 | Owner-invite Edge Function, nightly pg_dump backups, Vercel preview (staging) deployments | ✅ done |
 | 4 | Cutover: localStorage is development-only — production builds require `VITE_SUPABASE_*` and refuse to start unconfigured; server-side backups replace the in-app export | ✅ done |
+| 5 | Gym Owner self-signup with a 10-day free trial: public `/signup` page, `gym-owner-signup` Edge Function, DB-level trial gate (`0003`), trial banner + upgrade screen, super-admin trial overview | ✅ done |
 
 With `VITE_SUPABASE_*` set, all data (gyms, members, receipts,
 templates, preferences, notification reads) lives in Postgres and
@@ -158,6 +176,20 @@ every user signs in through Supabase Auth. Demo mode
 variables, but **only in development** (`npm run dev`, `npm test`)
 — a production build without Supabase configured shows a
 configuration error instead of silently using browser storage.
+
+**How the 10-day trial works:** a signup creates a gym with
+`plan = 'trial'` and `subscription_end_date = now() + 10 days`
+(computed in Postgres). While the trial is live the owner gets the
+full dashboard plus a countdown banner. When the end date passes:
+- the RLS policies (via `gym_access_ok()`) block the gym's
+  members / payments / receipts at the **database** level — no
+  frontend-only check, and the date can't be moved by changing
+  device settings;
+- the app shows an upgrade screen (₹499/month, WhatsApp /
+  contact admin) instead of the dashboard;
+- all data stays intact. The Super Admin activates the gym from
+  **Subscriptions → Renew / Change Plan** and access is restored
+  immediately.
 
 ## Backups
 
@@ -177,6 +209,16 @@ configuration error instead of silently using browser storage.
 
 - Every table has row-level security; gym owners can only touch their own
   gym's rows, super-admins the whole platform (see `0001_init.sql`).
-- Passwords are stored by Supabase Auth (SCRAM-hashed) — never in the app.
+- Passwords are stored by Supabase Auth (SCRAM-hashed) — never in the app,
+  and never visible to the super admin (the signup and invite flows
+  hand the password to Supabase Auth once, over HTTPS).
 - The anon key is safe to expose; it is guarded by RLS. The service role key
   never leaves the server.
+- Trial expiry is enforced by RLS (`gym_access_ok()` in
+  `0003_trial_access.sql`) against the Postgres clock — a gym owner
+  cannot extend a trial from the browser, and an expired trial
+  loses access to members, payments and receipts at the database
+  level. Paid plans are unaffected.
+- A public signup always receives the `gym-owner` role — it is
+  assigned by the `handle_new_user()` trigger server-side, and the
+  signup form has no role field.

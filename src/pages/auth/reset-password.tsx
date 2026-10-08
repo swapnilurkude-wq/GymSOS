@@ -11,6 +11,7 @@ import {
   Lock,
 } from "lucide-react"
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase"
+import { useAuth } from "@/context/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -27,6 +28,7 @@ type PageStatus = "loading" | "ready" | "expired" | "demo"
  */
 export default function ResetPasswordPage() {
   const navigate = useNavigate()
+  const { logout } = useAuth()
 
   const [status, setStatus] = useState<PageStatus>("loading")
   const [password, setPassword] = useState("")
@@ -114,8 +116,9 @@ export default function ResetPasswordPage() {
     }
 
     // The recovery session must not stay signed in —
+    // clear it everywhere (Supabase + app state) so
     // the user signs in fresh with the new password.
-    await getSupabase().auth.signOut().catch(() => {})
+    logout()
     setDone(true)
   }
 

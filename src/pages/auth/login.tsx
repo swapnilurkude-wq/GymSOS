@@ -1,5 +1,5 @@
 import { useState, type SyntheticEvent } from "react"
-import { useNavigate, useLocation } from "react-router-dom"
+import { useNavigate, useLocation, Link } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Mail,
@@ -55,12 +55,20 @@ export default function LoginPage() {
   )
   const [resetError, setResetError] = useState<string | null>(null)
 
-  // Set when redirected here after a successful password reset.
-  const [info] = useState<string | null>(
-    (location.state as { resetSuccess?: boolean } | null)?.resetSuccess
-      ? "Password updated — sign in with your new password."
-      : null,
-  )
+  // Set when redirected here after a password reset
+  // or a new account signup.
+  const [info] = useState<string | null>(() => {
+    const state = location.state as
+      | { resetSuccess?: boolean; signupSuccess?: string }
+      | null
+    if (state?.signupSuccess) {
+      return `${state.signupSuccess} was created — sign in to start your 10-day free trial.`
+    }
+    if (state?.resetSuccess) {
+      return "Password updated — sign in with your new password."
+    }
+    return null
+  })
 
   async function handleForgotPassword(e: SyntheticEvent) {
     e.preventDefault()
@@ -407,6 +415,23 @@ export default function LoginPage() {
                 </span>
               )}
             </Button>
+
+            <div className="mt-5 rounded-xl border border-primary/30 bg-primary/5 p-4">
+              <p className="mb-2.5 text-center text-xs font-medium text-muted-foreground">
+                New gym owner?
+              </p>
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="w-full border-primary/40 bg-background hover:bg-primary/10"
+              >
+                <Link to="/signup">
+                  <Sparkles className="size-4 text-primary" />
+                  Start your 10-day FREE trial
+                </Link>
+              </Button>
+            </div>
           </form>
 
           <div className="mt-7">

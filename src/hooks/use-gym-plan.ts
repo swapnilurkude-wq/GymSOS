@@ -33,6 +33,7 @@ export function useGymPlan() {
   const plan: GymPlan = gym?.plan ?? "trial"
 
   return {
+    gym,
     plan,
     planLabel: PLAN_LABEL[plan],
     features: getPlanFeatures(plan),

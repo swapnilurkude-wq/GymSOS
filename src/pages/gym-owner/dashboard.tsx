@@ -13,8 +13,11 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useAuth } from "@/context/auth-context"
+import { useGymPlan } from "@/hooks/use-gym-plan"
 import { useMembers } from "@/hooks/use-members"
 import { useReceipts } from "@/hooks/use-receipts"
+import { getTrialState } from "@/lib/gym-status"
+import { TrialBanner } from "@/components/gym-owner/trial-banner"
 import { Button } from "@/components/ui/button"
 import { StatCard } from "@/components/shared/stat-card"
 import { RevenueTrendChart } from "@/components/dashboard/revenue-trend-chart"
@@ -44,6 +47,7 @@ const STAT_ICONS: Record<string, LucideIcon> = {
 export default function GymOwnerDashboard() {
   const { session } = useAuth()
   const gymId = session?.gymId ?? ""
+  const { gym } = useGymPlan()
   const { members } = useMembers(gymId)
   const { receipts } = useReceipts(gymId)
   const today = new Date().toLocaleDateString("en-IN", {
@@ -88,6 +92,10 @@ export default function GymOwnerDashboard() {
           </Link>
         </Button>
       </motion.div>
+
+      {gym && getTrialState(gym) === "trial-active" && (
+        <TrialBanner gym={gym} />
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpiStats.map(({ key, ...stat }, i) => (

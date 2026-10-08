@@ -1,11 +1,22 @@
 import { useMemo, useState } from "react"
 import { motion } from "framer-motion"
-import { CheckCircle2, CreditCard, Wallet, CalendarClock, Ban, X } from "lucide-react"
+import {
+  CheckCircle2,
+  CreditCard,
+  Wallet,
+  CalendarClock,
+  Ban,
+  Sparkles,
+  TimerOff,
+  UserPlus,
+  X,
+} from "lucide-react"
 import { useGyms } from "@/hooks/use-gyms"
 import { DataErrorBanner } from "@/components/shared/data-error-banner"
 import { StatCard } from "@/components/shared/stat-card"
 import { SubscriptionToolbar } from "@/components/subscriptions/subscription-toolbar"
 import { SubscriptionTable } from "@/components/subscriptions/subscription-table"
+import { TrialSignupsTable } from "@/components/subscriptions/trial-signups-table"
 import { ChangePlanDialog } from "@/components/subscriptions/change-plan-dialog"
 import { RenewDialog } from "@/components/subscriptions/renew-dialog"
 import type { GymFilters } from "@/components/gyms/gym-toolbar"
@@ -15,6 +26,7 @@ import { GYM_PLAN_FEE } from "@/types"
 import type { Gym, GymPlan } from "@/types"
 
 const DEFAULT_FILTERS: GymFilters = { search: "", status: "all", plan: "all" }
+const DAY_MS = 1000 * 60 * 60 * 24
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", {
@@ -57,6 +69,25 @@ export default function SubscriptionManagementPage() {
     })
   }, [gyms, filters])
 
+  const trialMetrics = useMemo(() => {
+    const now = Date.now()
+    const trialGyms = gyms.filter((g) => g.plan === "trial")
+    const isExpired = (g: Gym) =>
+      new Date(g.subscriptionEndDate).getTime() <= now
+    return {
+      totalSignups: gyms.length,
+      activeTrials: trialGyms.filter((g) => !isExpired(g)).length,
+      expiringSoon: trialGyms.filter((g) => {
+        const days = Math.ceil(
+          (new Date(g.subscriptionEndDate).getTime() - now) / DAY_MS
+        )
+        return days > 0 && days <= 3
+      }).length,
+      expiredTrials: trialGyms.filter(isExpired).length,
+      paidGyms: gyms.filter((g) => g.plan !== "trial").length,
+    }
+  }, [gyms])
+
   async function handleRenewConfirm(gym: Gym, newEndDate: string) {
     await editGym(gym.id, renewSubscriptionValues(gym, newEndDate))
     setBanner(`${gym.name}'s subscription was renewed until ${formatDate(newEndDate)}.`)
@@ -97,6 +128,24 @@ export default function SubscriptionManagementPage() {
         <StatCard icon={Ban} label="Suspended / Expired" value={metrics.atRisk} tone="danger" />
       </div>
 
+      <div className="flex flex-col gap-1">
+        <h2 className="font-display text-sm font-semibold text-foreground">
+          Trial overview
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Live counts from the database — 10-day free trials from public
+          signup
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <StatCard icon={UserPlus} label="Total Gym Signups" value={trialMetrics.totalSignups} tone="brand" />
+        <StatCard icon={Sparkles} label="Active Free Trials" value={trialMetrics.activeTrials} tone="success" />
+        <StatCard icon={CalendarClock} label="Trials Expiring Soon" value={trialMetrics.expiringSoon} tone="warning" />
+        <StatCard icon={TimerOff} label="Expired Trials" value={trialMetrics.expiredTrials} tone="danger" />
+        <StatCard icon={CreditCard} label="Paid Gyms" value={trialMetrics.paidGyms} tone="brand" />
+      </div>
+
       {banner && (
         <div className="flex items-start justify-between gap-3 rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
           <div className="flex items-start gap-2">
@@ -117,6 +166,17 @@ export default function SubscriptionManagementPage() {
         onChangePlan={setChangePlanTarget}
         onToggleSuspend={handleToggleSuspend}
       />
+
+      <div className="flex flex-col gap-1">
+        <h2 className="font-display text-sm font-semibold text-foreground">
+          Trial Signups
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Every gym owner who started a 10-day free trial — newest first
+        </p>
+      </div>
+
+      <TrialSignupsTable gyms={gyms} />
 
       <ChangePlanDialog
         gym={changePlanTarget}
