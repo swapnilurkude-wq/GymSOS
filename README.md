@@ -78,6 +78,7 @@ require `VITE_SUPABASE_*` — see the migration plan below.
    - `supabase/migrations/0003_trial_access.sql` (trial gate, signup RPC, owner-mobile uniqueness)
    - `supabase/migrations/0004_member_gender_undisclosed.sql` (fourth gender option: "Prefer not to say")
    - `supabase/migrations/0005_whatsapp_messaging.sql` (WhatsApp messaging: provider config, opt-ins, message queue, eligibility engine — ships disabled)
+   - `supabase/migrations/0006_whatsapp_dispatch.sql` (atomic message claiming, daily-cap counter, manual retry, stale sweep)
 4. **SQL Editor** → run `supabase/seed.sql` (demo gyms, members, template, counters)
 
 ### 2. Create the login accounts
@@ -126,6 +127,8 @@ supabase functions deploy invite-gym-owner
 supabase functions deploy gym-owner-signup
 supabase functions deploy whatsapp-config
 supabase functions deploy whatsapp-test
+supabase functions deploy whatsapp-scheduler
+supabase functions deploy whatsapp-retry
 ```
 
 The WhatsApp functions also need one Edge Function
@@ -165,6 +168,21 @@ provider credentials fails closed.
   the configured test recipient only, records the
   outcome in the message outbox, and stamps
   `last_tested_at` so the integration can be activated.
+- **whatsapp-scheduler** — the cron-driven dispatcher.
+  Claims due messages atomically (`FOR UPDATE SKIP
+  LOCKED`, so overlapping runs never double-dispatch),
+  re-checks eligibility immediately before every
+  delivery, sends, and logs outcomes. Supports
+  `?dry_run=true` (full evaluation, zero writes, zero
+  sends — the safe rehearsal mode). Schedule it in the
+  Supabase dashboard → Functions → whatsapp-scheduler →
+  Configure → Schedule, suggested `*/15 * * * *`.
+- **whatsapp-retry** — Super Admin manual retry of a
+  FAILED message. Re-queues the same outbox row (same
+  idempotency key — a retry can never duplicate a
+  message), re-checks eligibility, and dispatches
+  immediately. Suppressed and cancelled rows stay as
+  they are.
 
 ### 6. Preview (staging) deployments
 
