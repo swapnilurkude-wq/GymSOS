@@ -65,12 +65,20 @@ require `VITE_SUPABASE_*` — see the migration plan below.
 ### 1. Create the Supabase project
 
 1. [supabase.com](https://supabase.com) → **New project** (set a database password)
-2. **SQL Editor** → run the migrations **in order**:
+2. **Back up the database first** (production only — always before
+   applying a migration):
+
+   ```bash
+   pg_dump "$SUPABASE_DB_URL" > gym-sos-backup-$(date +%F).sql
+   ```
+
+3. **SQL Editor** → run the migrations **in order**:
    - `supabase/migrations/0001_init.sql` (tables, RLS, triggers)
    - `supabase/migrations/0002_profile_email_and_counters.sql` (profile email sync, atomic receipt counters)
    - `supabase/migrations/0003_trial_access.sql` (trial gate, signup RPC, owner-mobile uniqueness)
    - `supabase/migrations/0004_member_gender_undisclosed.sql` (fourth gender option: "Prefer not to say")
-3. **SQL Editor** → run `supabase/seed.sql` (demo gyms, members, template, counters)
+   - `supabase/migrations/0005_whatsapp_messaging.sql` (WhatsApp messaging: provider config, opt-ins, message queue, eligibility engine — ships disabled)
+4. **SQL Editor** → run `supabase/seed.sql` (demo gyms, members, template, counters)
 
 ### 2. Create the login accounts
 
@@ -169,6 +177,7 @@ supabase/
 | 3 | Owner-invite Edge Function, nightly pg_dump backups, Vercel preview (staging) deployments | ✅ done |
 | 4 | Cutover: localStorage is development-only — production builds require `VITE_SUPABASE_*` and refuse to start unconfigured; server-side backups replace the in-app export | ✅ done |
 | 5 | Gym Owner self-signup with a 10-day free trial: public `/signup` page, `gym-owner-signup` Edge Function, DB-level trial gate (`0003`), trial banner + upgrade screen, super-admin trial overview | ✅ done |
+| 6 | WhatsApp messaging (`0005`): provider config (encrypted), opt-ins, message queue with idempotency, central eligibility engine, owner/member expiry reminders, Super Admin controls — **ships disabled** | 🚧 in progress |
 
 With `VITE_SUPABASE_*` set, all data (gyms, members, receipts,
 templates, preferences, notification reads) lives in Postgres and
@@ -206,6 +215,19 @@ full dashboard plus a countdown banner. When the end date passes:
 - **Restore:** download the artifact and run
   `pg_restore --clean --if-exists --db-url "$SUPABASE_DB_URL" backup.dump`.
 
+## Rollback
+
+Every migration so far is **additive** — no existing
+table, column, function or policy is modified, so a
+failed deployment can never corrupt existing data.
+
+| Risk | Response |
+| ---- | -------- |
+| Bad migration | Restore the pre-migration `pg_dump` (take one **before** every migration), or use Supabase's point-in-time recovery |
+| Bad app deploy | `vercel rollback` (instant, previous deployment) or `git revert` + push |
+| WhatsApp misbehaviour | Set `whatsapp_provider_config.is_active = false` — every send path checks it before dispatching, so this stops all messaging immediately without touching any other feature |
+| Remove the feature entirely | Drop the new tables/functions from `0005_whatsapp_messaging.sql` — they are self-contained; existing app behaviour is unaffected |
+
 ## Security notes
 
 - Every table has row-level security; gym owners can only touch their own
@@ -223,3 +245,13 @@ full dashboard plus a countdown banner. When the end date passes:
 - A public signup always receives the `gym-owner` role — it is
   assigned by the `handle_new_user()` trigger server-side, and the
   signup form has no role field.
+- WhatsApp provider credentials (`0005`) are stored **encrypted**
+  (`pgcrypto`) in the database; the decryption key lives only in
+  Edge Function secrets. The frontend never sees the access token —
+  the Super Admin UI only shows connection status. Provider
+  configuration and message logs are super-admin-only; gym owners
+  see only their own gym's rows, and an expired trial loses that
+  access too (`gym_access_ok()` on the messaging policies).
+- WhatsApp messaging ships disabled: `is_active = false` on the
+  provider config plus the send-time eligibility check means no
+  message is sent until the integration is configured and tested.
