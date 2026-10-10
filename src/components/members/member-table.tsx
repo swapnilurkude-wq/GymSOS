@@ -1,4 +1,4 @@
-import { MoreHorizontal, Pencil, Printer, FileDown, Trash2, Users, Lock } from "lucide-react"
+import { MoreHorizontal, Pencil, Printer, FileDown, Trash2, Users, Lock, MessageSquareText } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,7 @@ interface MemberTableProps {
   members: Member[]
   onEdit?: (member: Member) => void
   onDelete?: (member: Member) => void
+  onManageWhatsapp?: (member: Member) => void
   onPrintReceipt: (member: Member) => void
   onDownloadPdf: (member: Member) => void
   pdfLockedReason?: string
@@ -40,6 +41,7 @@ export function MemberTable({
   members,
   onEdit,
   onDelete,
+  onManageWhatsapp,
   onPrintReceipt,
   onDownloadPdf,
   pdfLockedReason,
@@ -127,6 +129,11 @@ export function MemberTable({
                       <DropdownMenuItem onClick={() => onPrintReceipt(member)}>
                         <Printer /> Print receipt
                       </DropdownMenuItem>
+                      {onManageWhatsapp && (
+                        <DropdownMenuItem onClick={() => onManageWhatsapp(member)}>
+                          <MessageSquareText /> WhatsApp updates
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         disabled={!!pdfLockedReason}
                         title={pdfLockedReason}

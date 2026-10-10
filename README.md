@@ -80,6 +80,7 @@ require `VITE_SUPABASE_*` — see the migration plan below.
    - `supabase/migrations/0005_whatsapp_messaging.sql` (WhatsApp messaging: provider config, opt-ins, message queue, eligibility engine — ships disabled)
    - `supabase/migrations/0006_whatsapp_dispatch.sql` (atomic message claiming, daily-cap counter, manual retry, stale sweep)
    - `supabase/migrations/0007_whatsapp_admin_controls.sql` (global + per-gym messaging pause RPCs)
+   - `supabase/migrations/0008_whatsapp_verification.sql` (owner number verification state, number-format constraints, owner settings RPC)
 4. **SQL Editor** → run `supabase/seed.sql` (demo gyms, members, template, counters)
 
 ### 2. Create the login accounts
@@ -130,6 +131,7 @@ supabase functions deploy whatsapp-config
 supabase functions deploy whatsapp-test
 supabase functions deploy whatsapp-scheduler
 supabase functions deploy whatsapp-retry
+supabase functions deploy whatsapp-owner-verify
 ```
 
 The WhatsApp functions also need one Edge Function
@@ -144,6 +146,16 @@ It encrypts the WhatsApp provider credentials in the
 database (`pgcrypto`-style, AES-256-GCM via WebCrypto).
 It never reaches the frontend; without it, saving
 provider credentials fails closed.
+
+Owner number verification also uses an approved
+business template with one text parameter (the 6-digit
+code). Create it in Meta and point the function at it:
+
+```bash
+supabase secrets set WHATSAPP_VERIFICATION_TEMPLATE="gym_sos_verification"
+```
+
+(Defaults to `gym_sos_verification` when unset.)
 
 - **invite-gym-owner** — the super-admin gym form creates
   owner logins through it. It verifies the caller's JWT,
@@ -185,6 +197,15 @@ provider credentials fails closed.
   immediately. Suppressed and cancelled rows stay as
   they are.
 
+- **whatsapp-owner-verify** — the gym owner's
+  WhatsApp number verification. `send_code` issues a
+  6-digit code (rate-limited to one per minute) through
+  the configured provider; only the SHA-256 hash of the
+  code is ever stored. `verify` checks the code (10-minute
+  expiry, 5-attempt budget) and marks the number
+  verified — the eligibility engine requires this before
+  the owner receives subscription reminders.
+
 ### WhatsApp Super Admin surfaces
 
 - **Settings → WhatsApp messaging** — configure the
@@ -196,6 +217,20 @@ provider credentials fails closed.
   suppressed), the global emergency pause, per-gym
   pause switches, and the message log with suppression
   reasons and safe retries of failed messages.
+
+### WhatsApp gym-owner surfaces
+
+- **Settings → WhatsApp updates** — the owner's
+  number (verified with a 6-digit code), their category
+  consents (membership expiry, subscription renewal,
+  daily fitness), preferred delivery time and timezone,
+  and the recent message history for their gym.
+- **Members → WhatsApp updates** — per-member opt-in
+  management (number, categories, preferred time).
+  Opting in is captured when a member is added;
+  opting out immediately cancels that member's queued
+  messages. No member message is ever sent without an
+  explicit opt-in.
 
 ### 6. Preview (staging) deployments
 

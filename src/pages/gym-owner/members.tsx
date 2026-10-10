@@ -8,11 +8,13 @@ import { DataErrorBanner } from "@/components/shared/data-error-banner"
 import { StatCard } from "@/components/shared/stat-card"
 import { MemberToolbar, type MemberFilters } from "@/components/members/member-toolbar"
 import { MemberTable } from "@/components/members/member-table"
+import { MemberWhatsappDialog } from "@/components/members/member-whatsapp-dialog"
 import { ReceiptFormSheet } from "@/components/receipts/receipt-form-sheet"
 import { getMemberStatus } from "@/lib/member-status"
 import { printReceipt, downloadReceiptPdf } from "@/lib/receipt"
 import { createReceipt, createReceiptForMember } from "@/lib/receipts"
 import { memberValuesFromReceiptForm } from "@/lib/members"
+import { saveMemberWhatsAppOptin } from "@/lib/owner-whatsapp"
 import { exportMembersToExcel, parseMembersFromExcelFile, downloadImportTemplate } from "@/lib/excel"
 import type { Member, ReceiptFormValues } from "@/types"
 
@@ -43,6 +45,8 @@ export default function MembersPage() {
   const [filters, setFilters] = useState<MemberFilters>(DEFAULT_FILTERS)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [banner, setBanner] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [whatsappMember, setWhatsappMember] = useState<Member | null>(null)
+  const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false)
 
   const filteredMembers = useMemo(() => {
     const query = filters.search.trim().toLowerCase()
@@ -71,10 +75,34 @@ export default function MembersPage() {
     setSheetOpen(true)
   }
 
-  async function handleSave(values: ReceiptFormValues) {
+  async function handleSave(
+    values: ReceiptFormValues,
+    opts: {
+      isNewMember: boolean
+      whatsapp?: {
+        whatsappNumber: string
+        optedIn: boolean
+        fitnessDaily: boolean
+        membershipExpiry: boolean
+        preferredTime: string
+      }
+    }
+  ) {
     try {
       const created = await addMember(memberValuesFromReceiptForm(values))
       await createReceipt(gymId, { ...values, memberId: created.id })
+      // Record the member's WhatsApp consent
+      // (or the explicit choice not to opt in).
+      if (opts.isNewMember && opts.whatsapp) {
+        try {
+          await saveMemberWhatsAppOptin(created.id, gymId, opts.whatsapp)
+        } catch {
+          // Consent recording must never
+          // block the member creation — the
+          // owner can set it from the
+          // member's menu afterwards.
+        }
+      }
       setBanner({
         type: "success",
         text: `${values.memberName} was added successfully. A payment slip was generated automatically.`,
@@ -195,9 +223,29 @@ export default function MembersPage() {
 
       <MemberTable
         members={filteredMembers}
+        onManageWhatsapp={(member) => {
+          setWhatsappMember(member)
+          setWhatsappDialogOpen(true)
+        }}
         onPrintReceipt={handlePrintReceipt}
         onDownloadPdf={handleDownloadPdf}
         pdfLockedReason={pdfLockedReason}
+      />
+
+      <MemberWhatsappDialog
+        member={whatsappMember}
+        gymId={gymId}
+        open={whatsappDialogOpen}
+        onOpenChange={(open) => {
+          setWhatsappDialogOpen(open)
+          if (!open) setWhatsappMember(null)
+        }}
+        onSaved={() => {
+          setBanner({
+            type: "success",
+            text: "WhatsApp opt-in updated.",
+          })
+        }}
       />
 
       <ReceiptFormSheet

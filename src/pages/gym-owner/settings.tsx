@@ -4,6 +4,7 @@ import { ProfileCard } from "@/components/settings/profile-card"
 import { GymProfileCard } from "@/components/settings/gym-profile-card"
 import { PlanCard } from "@/components/settings/plan-card"
 import { ReceiptTemplateCard } from "@/components/settings/receipt-template-card"
+import { GymOwnerWhatsAppCard } from "@/components/settings/gym-owner-whatsapp-card"
 import { PasswordCard } from "@/components/settings/password-card"
 import { PreferencesCard } from "@/components/settings/preferences-card"
 
@@ -26,6 +27,7 @@ export default function GymOwnerSettingsPage() {
       <GymProfileCard />
       <PlanCard />
       <ReceiptTemplateCard />
+      <GymOwnerWhatsAppCard />
       <PasswordCard />
       <PreferencesCard userId={session.userId} />
     </div>

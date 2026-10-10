@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
 import {
   Select,
   SelectContent,
@@ -25,6 +26,7 @@ import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/format"
 import { blankReceiptValues, receiptToFormValues, addMonths } from "@/lib/receipt-defaults"
 import { computeReceiptBalance, computeReceiptStatus, getReceiptsByMember } from "@/lib/receipts"
+import { normalizeWhatsAppNumber } from "@/lib/owner-whatsapp"
 import { GENDER_LABEL, PLAN_DURATION_MONTHS, RECEIPT_PARTICULAR_LABEL } from "@/types"
 import type {
   Gender,
@@ -56,7 +58,19 @@ interface ReceiptFormSheetProps {
   members: Member[]
   defaultReceiverName: string
   receipt?: Receipt | null
-  onSave: (values: ReceiptFormValues, opts: { isNewMember: boolean }) => void
+  onSave: (
+    values: ReceiptFormValues,
+    opts: {
+      isNewMember: boolean
+      whatsapp?: {
+        whatsappNumber: string
+        optedIn: boolean
+        fitnessDaily: boolean
+        membershipExpiry: boolean
+        preferredTime: string
+      }
+    }
+  ) => void
   gyms?: Gym[]
   selectedGymId?: string
   onGymChange?: (gymId: string) => void
@@ -80,10 +94,24 @@ export function ReceiptFormSheet({
   const showGymSelector = !!gyms
   const [isNewMember, setIsNewMember] = useState(isMemberVariant)
   const [values, setValues] = useState<ReceiptFormValues>(blankReceiptValues)
+  const [whatsappOptedIn, setWhatsappOptedIn] = useState(false)
+  const [whatsappUseContact, setWhatsappUseContact] = useState(true)
+  const [whatsappNumber, setWhatsappNumber] = useState("")
+  const [whatsappFitnessDaily, setWhatsappFitnessDaily] = useState(false)
+  const [whatsappMembershipExpiry, setWhatsappMembershipExpiry] =
+    useState(false)
+  const [whatsappPreferredTime, setWhatsappPreferredTime] =
+    useState("09:00")
 
   useEffect(() => {
     if (open) {
       setIsNewMember(isMemberVariant)
+      setWhatsappOptedIn(false)
+      setWhatsappUseContact(true)
+      setWhatsappNumber("")
+      setWhatsappFitnessDaily(false)
+      setWhatsappMembershipExpiry(false)
+      setWhatsappPreferredTime("09:00")
       setValues(
         receipt
           ? {
@@ -177,7 +205,28 @@ export function ReceiptFormSheet({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!canSubmit) return
-    onSave(values, { isNewMember: !isEditing && isNewMember })
+    onSave(values, {
+      isNewMember: !isEditing && isNewMember,
+      whatsapp:
+        !isEditing && isNewMember
+          ? {
+              // The country code is added on
+              // save — a bare 10-digit mobile
+              // becomes 91XXXXXXXXXX.
+              whatsappNumber: whatsappOptedIn
+                ? normalizeWhatsAppNumber(
+                    whatsappUseContact
+                      ? values.memberContact
+                      : whatsappNumber
+                  )
+                : "",
+              optedIn: whatsappOptedIn,
+              fitnessDaily: whatsappFitnessDaily,
+              membershipExpiry: whatsappMembershipExpiry,
+              preferredTime: `${whatsappPreferredTime}:00`,
+            }
+          : undefined,
+    })
   }
 
   return (
@@ -330,6 +379,111 @@ export function ReceiptFormSheet({
                   </Select>
                 </div>
               </div>
+
+              {isNewMember && (
+                <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-secondary/20 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        WhatsApp updates
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        The member can unsubscribe at any time
+                      </p>
+                    </div>
+                    <Switch
+                      checked={whatsappOptedIn}
+                      onCheckedChange={setWhatsappOptedIn}
+                      aria-label="Member opted in to WhatsApp updates"
+                    />
+                  </div>
+
+                  {whatsappOptedIn && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="whatsapp-use-contact"
+                          checked={whatsappUseContact}
+                          onCheckedChange={(checked) =>
+                            setWhatsappUseContact(checked === true)
+                          }
+                        />
+                        <Label
+                          htmlFor="whatsapp-use-contact"
+                          className="text-sm font-normal"
+                        >
+                          Use the contact number for WhatsApp
+                        </Label>
+                      </div>
+
+                      {!whatsappUseContact && (
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor="whatsapp-number">
+                            WhatsApp number
+                          </Label>
+                          <Input
+                            id="whatsapp-number"
+                            value={whatsappNumber}
+                            onChange={(e) =>
+                              setWhatsappNumber(
+                                e.target.value.replace(/\D/g, "")
+                              )
+                            }
+                            placeholder="10-digit mobile number"
+                          />
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-4">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="whatsapp-fitness-daily"
+                            checked={whatsappFitnessDaily}
+                            onCheckedChange={(checked) =>
+                              setWhatsappFitnessDaily(checked === true)
+                            }
+                          />
+                          <Label
+                            htmlFor="whatsapp-fitness-daily"
+                            className="text-sm font-normal"
+                          >
+                            Daily fitness messages
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="whatsapp-membership-expiry"
+                            checked={whatsappMembershipExpiry}
+                            onCheckedChange={(checked) =>
+                              setWhatsappMembershipExpiry(checked === true)
+                            }
+                          />
+                          <Label
+                            htmlFor="whatsapp-membership-expiry"
+                            className="text-sm font-normal"
+                          >
+                            Membership expiry reminders
+                          </Label>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="whatsapp-preferred-time">
+                          Preferred delivery time
+                        </Label>
+                        <Input
+                          id="whatsapp-preferred-time"
+                          type="time"
+                          value={whatsappPreferredTime}
+                          onChange={(e) =>
+                            setWhatsappPreferredTime(e.target.value)
+                          }
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </section>
 
             <section className="flex flex-col gap-4">
