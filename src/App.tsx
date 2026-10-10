@@ -18,6 +18,7 @@ const SubscriptionManagementPage = lazy(() => import("@/pages/super-admin/subscr
 const RevenueDashboardPage = lazy(() => import("@/pages/super-admin/revenue"))
 const SuperAdminSettingsPage = lazy(() => import("@/pages/super-admin/settings"))
 const SuperAdminReceiptsPage = lazy(() => import("@/pages/super-admin/receipts"))
+const SuperAdminMessagingPage = lazy(() => import("@/pages/super-admin/messaging"))
 const GymOwnerDashboard = lazy(() => import("@/pages/gym-owner/dashboard"))
 const MembersPage = lazy(() => import("@/pages/gym-owner/members"))
 const PaymentsPage = lazy(() => import("@/pages/gym-owner/payments"))
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="subscriptions" element={<SubscriptionManagementPage />} />
             <Route path="revenue" element={<RevenueDashboardPage />} />
             <Route path="receipts" element={<SuperAdminReceiptsPage />} />
+            <Route path="messaging" element={<SuperAdminMessagingPage />} />
             <Route path="analytics" element={<ComingSoon title="Analytics" />} />
             <Route path="reports" element={<ComingSoon title="Reports" />} />
             <Route path="settings" element={<SuperAdminSettingsPage />} />

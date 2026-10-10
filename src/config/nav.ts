@@ -8,6 +8,7 @@ import {
   Users,
   Wallet,
   Receipt,
+  MessageSquareText,
   type LucideIcon,
 } from "lucide-react"
 import type { Role } from "@/types"
@@ -26,6 +27,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "Subscriptions", to: "/super-admin/subscriptions", icon: CreditCard },
     { label: "Revenue Dashboard", to: "/super-admin/revenue", icon: Wallet },
     { label: "Receipts", to: "/super-admin/receipts", icon: Receipt },
+    { label: "Messaging", to: "/super-admin/messaging", icon: MessageSquareText },
     { label: "Analytics", to: "/super-admin/analytics", icon: LineChart },
     { label: "Reports", to: "/super-admin/reports", icon: BarChart3 },
     { label: "Settings", to: "/super-admin/settings", icon: Settings },

@@ -79,6 +79,7 @@ require `VITE_SUPABASE_*` — see the migration plan below.
    - `supabase/migrations/0004_member_gender_undisclosed.sql` (fourth gender option: "Prefer not to say")
    - `supabase/migrations/0005_whatsapp_messaging.sql` (WhatsApp messaging: provider config, opt-ins, message queue, eligibility engine — ships disabled)
    - `supabase/migrations/0006_whatsapp_dispatch.sql` (atomic message claiming, daily-cap counter, manual retry, stale sweep)
+   - `supabase/migrations/0007_whatsapp_admin_controls.sql` (global + per-gym messaging pause RPCs)
 4. **SQL Editor** → run `supabase/seed.sql` (demo gyms, members, template, counters)
 
 ### 2. Create the login accounts
@@ -119,7 +120,7 @@ rewrites).
 
 ### 5. Deploy the Edge Functions
 
-Four server-side functions (the service role key never
+Six server-side functions (the service role key never
 reaches the browser):
 
 ```bash
@@ -183,6 +184,18 @@ provider credentials fails closed.
   message), re-checks eligibility, and dispatches
   immediately. Suppressed and cancelled rows stay as
   they are.
+
+### WhatsApp Super Admin surfaces
+
+- **Settings → WhatsApp messaging** — configure the
+  provider (Meta Cloud API), send the required test
+  message, then activate. Credentials are encrypted at
+  rest and never returned to the browser.
+- **Messaging page** (`/super-admin/messaging`) —
+  connection status, 30-day volume (sent / failed /
+  suppressed), the global emergency pause, per-gym
+  pause switches, and the message log with suppression
+  reasons and safe retries of failed messages.
 
 ### 6. Preview (staging) deployments
 

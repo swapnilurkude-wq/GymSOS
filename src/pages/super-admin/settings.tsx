@@ -4,6 +4,7 @@ import { ProfileCard } from "@/components/settings/profile-card"
 import { PasswordCard } from "@/components/settings/password-card"
 import { PreferencesCard } from "@/components/settings/preferences-card"
 import { BackupCard } from "@/components/settings/backup-card"
+import { WhatsAppProviderCard } from "@/components/settings/whatsapp-provider-card"
 
 export default function SuperAdminSettingsPage() {
   const { session } = useAuth()
@@ -24,6 +25,7 @@ export default function SuperAdminSettingsPage() {
       <PasswordCard />
       <PreferencesCard userId={session.userId} />
       <BackupCard />
+      <WhatsAppProviderCard />
     </div>
   )
 }
