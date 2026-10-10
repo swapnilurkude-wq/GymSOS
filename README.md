@@ -118,13 +118,28 @@ rewrites).
 
 ### 5. Deploy the Edge Functions
 
-Two server-side functions (the service role key never
+Four server-side functions (the service role key never
 reaches the browser):
 
 ```bash
 supabase functions deploy invite-gym-owner
 supabase functions deploy gym-owner-signup
+supabase functions deploy whatsapp-config
+supabase functions deploy whatsapp-test
 ```
+
+The WhatsApp functions also need one Edge Function
+secret (Supabase dashboard → Functions → whatsapp-config
+→ Secrets, or `supabase secrets set`):
+
+```bash
+supabase secrets set WHATSAPP_ENCRYPTION_KEY="<random-64-char-string>"
+```
+
+It encrypts the WhatsApp provider credentials in the
+database (`pgcrypto`-style, AES-256-GCM via WebCrypto).
+It never reaches the frontend; without it, saving
+provider credentials fails closed.
 
 - **invite-gym-owner** — the super-admin gym form creates
   owner logins through it. It verifies the caller's JWT,
@@ -139,6 +154,17 @@ supabase functions deploy gym-owner-signup
   `now()` — never from the browser. The auth trigger
   assigns the `gym-owner` role, so a public signup can
   never become a super-admin.
+- **whatsapp-config** — Super Admin WhatsApp provider
+  management: connection status (GET) and
+  save / activate / deactivate / reset (POST). Credentials
+  are encrypted with `WHATSAPP_ENCRYPTION_KEY` before
+  storage and are never returned. Activation requires a
+  successful test send first.
+- **whatsapp-test** — the Super Admin's explicit,
+  authorized test send. Sends one approved template to
+  the configured test recipient only, records the
+  outcome in the message outbox, and stamps
+  `last_tested_at` so the integration can be activated.
 
 ### 6. Preview (staging) deployments
 
@@ -161,9 +187,10 @@ src/
   types/        Shared TypeScript types (single source of truth)
 supabase/
   migrations/   Schema with row-level security
-  functions/    Edge Functions (invite-gym-owner, gym-owner-signup)
-  seed.sql      Demo data
-  link-demo-profiles.sql  Attaches demo auth users to profiles
+  functions/    Edge Functions (invite-gym-owner, gym-owner-signup,
+                whatsapp-config, whatsapp-test) + _shared modules
+                (eligibility engine, provider adapters, credential
+                encryption)
 .github/workflows/
   db-backup.yml Nightly pg_dump → 30-day artifact retention
 ```

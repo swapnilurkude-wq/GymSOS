@@ -148,7 +148,10 @@ create index member_whatsapp_optins_gym_idx
 create table public.message_outbox (
   id                 uuid primary key default gen_random_uuid(),
   idempotency_key    text not null unique,
-  gym_id             uuid not null references public.gyms (id) on delete cascade,
+  -- Null only for 'test' rows (super-admin test
+  -- sends, which are not gym-bound). Real
+  -- messages always carry their gym.
+  gym_id             uuid references public.gyms (id) on delete cascade,
   member_id          uuid references public.members (id) on delete cascade,
   owner_user_id      uuid references public.profiles (id) on delete cascade,
   recipient_phone    text not null check (recipient_phone ~ '^[0-9]{8,15}$'),
@@ -397,13 +400,12 @@ begin
       return next;
       return;
     end if;
-    -- Still inside the reminder window: renewed subscriptions
-    -- (end date pushed out) and long-past expiries suppress.
-    if v_gym.subscription_end_date <= now() - interval '1 day' then
-      reason := 'subscription_expiry_passed';
-      return next;
-      return;
-    end if;
+    -- An expired subscription does NOT suppress the
+    -- owner's own reminders — renewing an expired
+    -- subscription is exactly what they nudge
+    -- about. A renewed subscription (end date
+    -- pushed beyond the window) suppresses stale
+    -- reminders at send time.
     if v_gym.subscription_end_date > now() + interval '7 days' then
       reason := 'subscription_renewed_or_not_due';
       return next;
@@ -475,16 +477,18 @@ begin
     return;
   end if;
 
-  -- Member opt-in state.
+  -- Member opt-in state. An explicit unsubscribe is
+  -- reported precisely; a never-opted-in member is
+  -- simply not opted in.
   select * into v_optin from public.member_whatsapp_optins o
     where o.member_id = m.member_id;
-  if v_optin is null or not v_optin.opted_in then
-    reason := 'member_not_opted_in';
+  if v_optin.opted_out_at is not null then
+    reason := 'member_unsubscribed';
     return next;
     return;
   end if;
-  if v_optin.opted_out_at is not null then
-    reason := 'member_unsubscribed';
+  if v_optin is null or not v_optin.opted_in then
+    reason := 'member_not_opted_in';
     return next;
     return;
   end if;
