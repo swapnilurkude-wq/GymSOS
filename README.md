@@ -17,7 +17,9 @@ platform super-admin (gyms, plans, revenue analytics, subscriptions).
 - **WhatsApp updates** — verified owner number (6-digit code),
   category consents, preferred delivery time, per-member
   opt-in management, automatic 7/3/0-day membership-expiry
-  and subscription-renewal reminders, and the gym's message
+  and subscription-renewal reminders, daily fitness
+  messages (gated on a fitness profile and a
+  trainer-approved workout plan), and the gym's message
   history
 
 **Super admin**
@@ -313,6 +315,13 @@ name, fitness tip).
   opting out immediately cancels that member's queued
   messages. No member message is ever sent without an
   explicit opt-in.
+- **Members → Fitness profile** — the member's
+  fitness profile (goal, level, notes) and workout
+  plan (name, description, exercises, trainer name).
+  Daily fitness messages flow only while a profile
+  AND a trainer-approved plan exist; approving a new
+  plan archives the previous one, and clearing the
+  plan stops the messages.
 
 ### 6. Preview (staging) deployments
 
@@ -469,7 +478,7 @@ failed deployment can never corrupt existing data.
 | Bad app deploy | `vercel rollback` (instant, previous deployment) or `git revert` + push |
 | WhatsApp misbehaviour | Set `whatsapp_provider_config.is_active = false` — every send path checks it before dispatching, so this stops all messaging immediately without touching any other feature |
 | Message flood / runaway costs | The Super Admin global pause (Settings → Messaging page) stops all dispatch; per-gym pauses stop a single gym's member messages; the daily send cap bounds the worst case per day |
-| Remove the feature entirely | Drop the new tables/functions from `0005_whatsapp_messaging.sql` (plus `0006`–`0010`, which only add functions on top) — they are self-contained; existing app behaviour is unaffected |
+| Remove the feature entirely | Drop the new tables/functions from `0005_whatsapp_messaging.sql` (plus `0006`–`0011`, which only add functions and tables on top) — they are self-contained; existing app behaviour is unaffected |
 
 ## Security notes
 
