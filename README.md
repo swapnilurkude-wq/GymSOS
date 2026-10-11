@@ -93,6 +93,7 @@ require `VITE_SUPABASE_*` — see the migration plan below.
    - `supabase/migrations/0008_whatsapp_verification.sql` (owner number verification state, number-format constraints, owner settings RPC)
    - `supabase/migrations/0009_owner_subscription_reminders.sql` (7/3/0-day owner renewal reminder enqueuer)
    - `supabase/migrations/0010_membership_expiry_reminders.sql` (7/3/0-day member membership expiry reminder enqueuer)
+   - `supabase/migrations/0011_fitness_profiles.sql` (member fitness profiles, trainer-approved workout plans, rotating tips, daily fitness enqueuer)
 4. **SQL Editor** → run `supabase/seed.sql` (demo gyms, members, template, counters)
 
 ### 2. Create the login accounts
@@ -272,6 +273,33 @@ must be created in the Meta business account
 (approved, with three text parameters: member
 name, end date, days label).
 
+### Daily fitness messages (automatic)
+
+Every scheduler run enqueues one daily message
+per member: the platform tip of the day (30
+rotating generic tips, picked by the member's
+local day-of-year), sent at the member's
+preferred time. A message is queued only when
+ALL of these hold: the gym is active, the
+owner's GymSOS subscription is active, the
+owner enabled daily fitness messages for the
+gym, the member opted in to daily fitness
+messages, AND the member has a fitness profile
+AND a trainer-approved workout plan (the same
+gate is re-checked immediately before delivery,
+so revoking a plan or approval stops the
+messages). Idempotency key embeds the member
+and the local date, so repeated runs never
+duplicate a day's message; a 4-hour catch-up
+window means a briefly-down scheduler still
+sends same-day but never delivers yesterday's
+tip alongside today's tomorrow.
+
+The `gym_sos_fitness_daily` Meta template must
+be created in the Meta business account
+(approved, with two text parameters: member
+name, fitness tip).
+
 ### WhatsApp gym-owner surfaces
 
 - **Settings → WhatsApp updates** — the owner's
@@ -371,6 +399,7 @@ sometimes days):
 | `gym_sos_verification` | UTILITY | `1` = the 6-digit code |
 | `gym_sos_subscription_expiry` | UTILITY | `1` = gym name, `2` = end date (e.g. "20 Oct 2026"), `3` = days label ("7 days" / "3 days" / "today") |
 | `gym_sos_membership_expiry` | UTILITY | `1` = member name, `2` = end date, `3` = days label |
+| `gym_sos_fitness_daily` | UTILITY | `1` = member name, `2` = the fitness tip |
 
 **3. Database** — run the migrations in order
 (`0001` → `0010`) in the SQL Editor, then `supabase/seed.sql`.

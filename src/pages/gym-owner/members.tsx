@@ -9,6 +9,7 @@ import { StatCard } from "@/components/shared/stat-card"
 import { MemberToolbar, type MemberFilters } from "@/components/members/member-toolbar"
 import { MemberTable } from "@/components/members/member-table"
 import { MemberWhatsappDialog } from "@/components/members/member-whatsapp-dialog"
+import { MemberFitnessDialog } from "@/components/members/member-fitness-dialog"
 import { ReceiptFormSheet } from "@/components/receipts/receipt-form-sheet"
 import { getMemberStatus } from "@/lib/member-status"
 import { printReceipt, downloadReceiptPdf } from "@/lib/receipt"
@@ -47,6 +48,8 @@ export default function MembersPage() {
   const [banner, setBanner] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [whatsappMember, setWhatsappMember] = useState<Member | null>(null)
   const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false)
+  const [fitnessMember, setFitnessMember] = useState<Member | null>(null)
+  const [fitnessDialogOpen, setFitnessDialogOpen] = useState(false)
 
   const filteredMembers = useMemo(() => {
     const query = filters.search.trim().toLowerCase()
@@ -227,6 +230,10 @@ export default function MembersPage() {
           setWhatsappMember(member)
           setWhatsappDialogOpen(true)
         }}
+        onManageFitness={(member) => {
+          setFitnessMember(member)
+          setFitnessDialogOpen(true)
+        }}
         onPrintReceipt={handlePrintReceipt}
         onDownloadPdf={handleDownloadPdf}
         pdfLockedReason={pdfLockedReason}
@@ -244,6 +251,21 @@ export default function MembersPage() {
           setBanner({
             type: "success",
             text: "WhatsApp opt-in updated.",
+          })
+        }}
+      />
+
+      <MemberFitnessDialog
+        member={fitnessMember}
+        open={fitnessDialogOpen}
+        onOpenChange={(open) => {
+          setFitnessDialogOpen(open)
+          if (!open) setFitnessMember(null)
+        }}
+        onSaved={() => {
+          setBanner({
+            type: "success",
+            text: "Fitness profile saved.",
           })
         }}
       />

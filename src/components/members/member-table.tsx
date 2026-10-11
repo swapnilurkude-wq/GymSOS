@@ -1,4 +1,4 @@
-import { MoreHorizontal, Pencil, Printer, FileDown, Trash2, Users, Lock, MessageSquareText } from "lucide-react"
+import { MoreHorizontal, Pencil, Printer, FileDown, Trash2, Users, Lock, MessageSquareText, Dumbbell } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -32,6 +32,7 @@ interface MemberTableProps {
   onEdit?: (member: Member) => void
   onDelete?: (member: Member) => void
   onManageWhatsapp?: (member: Member) => void
+  onManageFitness?: (member: Member) => void
   onPrintReceipt: (member: Member) => void
   onDownloadPdf: (member: Member) => void
   pdfLockedReason?: string
@@ -42,6 +43,7 @@ export function MemberTable({
   onEdit,
   onDelete,
   onManageWhatsapp,
+  onManageFitness,
   onPrintReceipt,
   onDownloadPdf,
   pdfLockedReason,
@@ -132,6 +134,11 @@ export function MemberTable({
                       {onManageWhatsapp && (
                         <DropdownMenuItem onClick={() => onManageWhatsapp(member)}>
                           <MessageSquareText /> WhatsApp updates
+                        </DropdownMenuItem>
+                      )}
+                      {onManageFitness && (
+                        <DropdownMenuItem onClick={() => onManageFitness(member)}>
+                          <Dumbbell /> Fitness profile
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem
