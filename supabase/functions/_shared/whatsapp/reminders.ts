@@ -71,3 +71,31 @@ export function membershipReminderIdempotencyKey(
 ): string {
   return `membership-reminder:${memberId}:${offsetDays}:${membershipEndDate.slice(0, 10)}`
 }
+
+/** The daily fitness message template.
+ *  Two text parameters: (1) member name,
+ *  (2) the fitness tip. */
+export const FITNESS_DAILY_TEMPLATE =
+  "gym_sos_fitness_daily"
+
+/** How many rotating daily tips the
+ *  platform ships (fitness_tips rows).
+ *  The tip of the day is picked by the
+ *  member's local day-of-year modulo
+ *  this count. */
+export const DAILY_FITNESS_TIP_COUNT = 30
+
+/**
+ * Idempotency key for a member's daily
+ * fitness message — one per member per
+ * LOCAL calendar day.
+ *
+ * Must match the SQL format:
+ *   fitness-daily:<memberId>:<YYYY-MM-DD>
+ */
+export function fitnessDailyIdempotencyKey(
+  memberId: string,
+  localDate: string
+): string {
+  return `fitness-daily:${memberId}:${localDate.slice(0, 10)}`
+}

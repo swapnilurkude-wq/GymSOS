@@ -56,6 +56,7 @@ import type {
  */
 export interface QueryChain {
   eq(column: string, value: unknown): QueryChain
+  limit(limit: number): QueryChain
   maybeSingle(): Promise<DbResult>
 }
 
@@ -136,6 +137,28 @@ async function maybeSingleRow<T>(
 }
 
 /**
+ * Existence check: does at least one row
+ * match the filters? limit(1) keeps the
+ * read safe when several rows can match
+ * (e.g. a member's workout-plan history).
+ */
+async function existsRow(
+  client: DbClient,
+  table: string,
+  filters: Array<{ column: string; value: unknown }>
+): Promise<boolean> {
+  let query = client.from(table).select("id").limit(1)
+  for (const filter of filters) {
+    query = query.eq(filter.column, filter.value)
+  }
+  const { data, error } = await query.maybeSingle()
+  if (error) {
+    throw new Error(`${table} read failed: ${error.message}`)
+  }
+  return data !== null && data !== undefined
+}
+
+/**
  * Loads the full eligibility snapshot for a queued
  * message. Only the rows the engine needs for the
  * message's path are fetched.
@@ -187,6 +210,8 @@ export async function loadEligibilitySnapshot(
     memberGymId: null,
     memberEndDate: null,
     memberOptin: null,
+    hasFitnessProfile: false,
+    hasApprovedPlan: false,
   }
 
   // Owner-bound rows (owner subscription reminders,
@@ -239,6 +264,27 @@ export async function loadEligibilitySnapshot(
       "*",
       [{ column: "member_id", value: message.member_id }]
     )
+
+    // Daily fitness messages additionally
+    // require a fitness profile and an
+    // approved workout plan — only these
+    // messages pay for the two extra reads.
+    if (message.category === "fitness_daily") {
+      snapshot.hasFitnessProfile = await existsRow(
+        client,
+        "fitness_profiles",
+        [{ column: "member_id", value: message.member_id }]
+      )
+      snapshot.hasApprovedPlan = await existsRow(
+        client,
+        "workout_plans",
+        [
+          { column: "member_id", value: message.member_id },
+          { column: "approved", value: true },
+          { column: "archived", value: false },
+        ]
+      )
+    }
   }
 
   return snapshot

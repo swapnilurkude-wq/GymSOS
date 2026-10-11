@@ -53,6 +53,14 @@ export interface EligibilitySnapshot {
   /** The member's membership end date — null when missing. */
   memberEndDate: string | null
   memberOptin: MemberOptinRow | null
+  /** fitness_daily only: the member has a
+   *  fitness profile (false when not
+   *  loaded — non-fitness paths never
+   *  need it). */
+  hasFitnessProfile: boolean
+  /** fitness_daily only: an approved,
+   *  non-archived workout plan exists. */
+  hasApprovedPlan: boolean
 }
 
 export interface EligibilityResult {
@@ -212,6 +220,21 @@ export function checkMessageEligibility(
   }
   if (m.category === "fitness_daily" && !optin.fitness_daily) {
     return block("member_fitness_messages_disabled")
+  }
+
+  // Daily fitness messages exist only once
+  // the member has a fitness profile AND a
+  // trainer-approved workout plan — the
+  // enqueuer pre-filters on the same
+  // conditions; this is the send-time
+  // re-check.
+  if (m.category === "fitness_daily") {
+    if (!snap.hasFitnessProfile) {
+      return block("fitness_profile_missing")
+    }
+    if (!snap.hasApprovedPlan) {
+      return block("fitness_plan_not_approved")
+    }
   }
 
   // Membership-expiry reminders only make sense for a

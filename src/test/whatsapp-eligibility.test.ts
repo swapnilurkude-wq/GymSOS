@@ -91,6 +91,8 @@ function baseSnapshot(
       membership_expiry: true,
       opted_out_at: null,
     },
+    hasFitnessProfile: true,
+    hasApprovedPlan: true,
     ...overrides,
   }
 }
@@ -496,5 +498,64 @@ describe("WhatsApp eligibility — strict member-path guards", () => {
       })
     )
     expect(result.ok).toBe(true)
+  })
+})
+
+describe("WhatsApp eligibility — daily fitness gates", () => {
+  it("blocks a fitness message when the member has no fitness profile", () => {
+    const result = checkMessageEligibility(
+      baseSnapshot({ hasFitnessProfile: false })
+    )
+    expect(result).toEqual({
+      ok: false,
+      reason: "fitness_profile_missing",
+      isDeferrable: false,
+    })
+  })
+
+  it("blocks a fitness message without a trainer-approved workout plan", () => {
+    const result = checkMessageEligibility(
+      baseSnapshot({ hasApprovedPlan: false })
+    )
+    expect(result).toEqual({
+      ok: false,
+      reason: "fitness_plan_not_approved",
+      isDeferrable: false,
+    })
+  })
+
+  it("allows a fitness message once a profile and an approved plan exist", () => {
+    const result = checkMessageEligibility(
+      baseSnapshot({
+        hasFitnessProfile: true,
+        hasApprovedPlan: true,
+      })
+    )
+    expect(result).toEqual({
+      ok: true,
+      reason: "",
+      isDeferrable: false,
+    })
+  })
+
+  it("ignores the fitness gates for other categories", () => {
+    const result = checkMessageEligibility(
+      baseSnapshot({
+        hasFitnessProfile: false,
+        hasApprovedPlan: false,
+        message: baseMessage({
+          category: "membership_expiry",
+          template_name: "gym_sos_membership_expiry",
+        }),
+      })
+    )
+    // The membership window (end date within
+    // 7 days) is the only category-specific
+    // gate for expiry reminders.
+    expect(result).toEqual({
+      ok: true,
+      reason: "",
+      isDeferrable: false,
+    })
   })
 })

@@ -9,12 +9,14 @@ import { dispatchMessage } from "../_shared/whatsapp/dispatch.ts"
  * suggested: every 15 minutes) or manually.
  *
  * Each run:
- *   1. enqueues due reminders — owner
+ *   1. enqueues due messages — owner
  *      subscription expiry (7/3/0 days,
- *      migration 0009) and member
+ *      migration 0009), member
  *      membership expiry (7/3/0 days,
- *      migration 0010); both idempotent
- *      on the idempotency key
+ *      migration 0010) and the daily
+ *      fitness tip (per member per local
+ *      day, migration 0011); all
+ *      idempotent on the idempotency key
  *   2. cancels stale rows (pending > 7 days)
  *   3. claims due messages one at a time
  *      (atomic, skip-locked — overlapping
@@ -89,13 +91,13 @@ Deno.serve(async (req: Request) => {
     auth: { persistSession: false },
   })
 
-  // Enqueue the expiry reminders that
-  // are due (idempotent — repeated runs
-  // never duplicate a reminder). Best
+  // Enqueue the due messages (idempotent
+  // — repeated runs never duplicate). Best
   // effort: a failure here must not
   // stop the run.
   let enqueuedOwner = 0
   let enqueuedMember = 0
+  let enqueuedFitness = 0
   if (!dryRun) {
     try {
       const { data: ownerCount } = await admin.rpc(
@@ -117,6 +119,18 @@ Deno.serve(async (req: Request) => {
     } catch (error) {
       console.error(
         "enqueue_membership_expiry_reminders failed",
+        error
+      )
+    }
+
+    try {
+      const { data: fitnessCount } = await admin.rpc(
+        "enqueue_daily_fitness_messages"
+      )
+      enqueuedFitness = Number(fitnessCount ?? 0)
+    } catch (error) {
+      console.error(
+        "enqueue_daily_fitness_messages failed",
         error
       )
     }
@@ -173,6 +187,7 @@ Deno.serve(async (req: Request) => {
     dryRun,
     enqueuedOwner,
     enqueuedMember,
+    enqueuedFitness,
     dispatched: results.length,
     results,
   })

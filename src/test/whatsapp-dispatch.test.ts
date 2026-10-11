@@ -43,6 +43,10 @@ class StubQuery {
     return this
   }
 
+  limit(_limit: number) {
+    return this
+  }
+
   async maybeSingle(): Promise<DbResult> {
     const rows = (this.db.tables.get(this.table) ?? []).filter(
       (row) =>
@@ -269,6 +273,31 @@ async function buildFixture(overrides: {
         end_date: "2026-10-13T00:00:00.000Z",
       },
     ],
+    fitness_profiles: [
+      {
+        member_id: "member-1",
+        goal: "strength",
+        level: "beginner",
+        notes: "",
+        created_at: FIXED_NOW.toISOString(),
+        updated_at: FIXED_NOW.toISOString(),
+      },
+    ],
+    workout_plans: [
+      {
+        id: "plan-1",
+        member_id: "member-1",
+        name: "Starter strength",
+        description: "",
+        exercises: [],
+        trainer_name: "Trainer",
+        approved: true,
+        approved_at: FIXED_NOW.toISOString(),
+        archived: false,
+        created_at: FIXED_NOW.toISOString(),
+        updated_at: FIXED_NOW.toISOString(),
+      },
+    ],
     member_whatsapp_optins: [
       {
         member_id: "member-1",
@@ -404,6 +433,97 @@ describe("dispatch — eligible member message", () => {
     expect(row.sent_at).toBe(FIXED_NOW.toISOString())
     expect(events(db)).toHaveLength(1)
     expect(events(db)[0].event_type).toBe("sent")
+  })
+})
+
+describe("dispatch — daily fitness gates", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("suppresses a fitness message when the member has no fitness profile", async () => {
+    const db = await buildFixture({
+      tables: { fitness_profiles: [] },
+    })
+    const fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+
+    const result = await dispatchMessage(db, "msg-1", {
+      encryptionKey: ENCRYPTION_KEY,
+      now: FIXED_NOW,
+    })
+
+    expect(result).toEqual({
+      outcome: "suppressed",
+      reason: "fitness_profile_missing",
+    })
+    // The gate fires before any provider call.
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(outboxRow(db).status).toBe("suppressed")
+    expect(outboxRow(db).status_reason).toBe(
+      "fitness_profile_missing"
+    )
+    expect(events(db)[0].event_type).toBe("suppressed")
+  })
+
+  it("suppresses a fitness message without an approved, active plan", async () => {
+    // A draft (unapproved) plan…
+    const draftDb = await buildFixture({
+      tables: {
+        workout_plans: [
+          {
+            id: "plan-1",
+            member_id: "member-1",
+            name: "Draft plan",
+            description: "",
+            exercises: [],
+            trainer_name: "",
+            approved: false,
+            approved_at: null,
+            archived: false,
+            created_at: FIXED_NOW.toISOString(),
+            updated_at: FIXED_NOW.toISOString(),
+          },
+        ],
+      },
+    })
+    const draftResult = await dispatchMessage(draftDb, "msg-1", {
+      encryptionKey: ENCRYPTION_KEY,
+      now: FIXED_NOW,
+    })
+    expect(draftResult).toEqual({
+      outcome: "suppressed",
+      reason: "fitness_plan_not_approved",
+    })
+
+    // …and an archived (superseded) plan both block.
+    const archivedDb = await buildFixture({
+      tables: {
+        workout_plans: [
+          {
+            id: "plan-1",
+            member_id: "member-1",
+            name: "Old plan",
+            description: "",
+            exercises: [],
+            trainer_name: "Trainer",
+            approved: true,
+            approved_at: FIXED_NOW.toISOString(),
+            archived: true,
+            created_at: FIXED_NOW.toISOString(),
+            updated_at: FIXED_NOW.toISOString(),
+          },
+        ],
+      },
+    })
+    const archivedResult = await dispatchMessage(archivedDb, "msg-1", {
+      encryptionKey: ENCRYPTION_KEY,
+      now: FIXED_NOW,
+    })
+    expect(archivedResult).toEqual({
+      outcome: "suppressed",
+      reason: "fitness_plan_not_approved",
+    })
   })
 })
 
