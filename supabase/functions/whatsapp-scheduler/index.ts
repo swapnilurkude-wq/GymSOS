@@ -9,13 +9,17 @@ import { dispatchMessage } from "../_shared/whatsapp/dispatch.ts"
  * suggested: every 15 minutes) or manually.
  *
  * Each run:
- *   1. cancels stale rows (pending > 7 days)
- *   2. claims due messages one at a time
+ *   1. enqueues due owner subscription
+ *      reminders (7/3/0 days — migration
+ *      0009; idempotent on the
+ *      idempotency key)
+ *   2. cancels stale rows (pending > 7 days)
+ *   3. claims due messages one at a time
  *      (atomic, skip-locked — overlapping
  *      runs can never double-dispatch)
- *   3. re-checks eligibility immediately
+ *   4. re-checks eligibility immediately
  *      before every delivery
- *   4. sends and logs the outcome
+ *   5. sends and logs the outcome
  *
  * Safety:
  *   * ?dry_run=true evaluates everything and
@@ -83,10 +87,28 @@ Deno.serve(async (req: Request) => {
     auth: { persistSession: false },
   })
 
-  // Release rows that have been pending too long
-  // (best effort — a failure here must not stop
-  // the run).
+  // Enqueue the owner subscription-expiry
+  // reminders that are due (idempotent —
+  // repeated runs never duplicate a
+  // reminder). Best effort: a failure
+  // here must not stop the run.
+  let enqueued = 0
   if (!dryRun) {
+    try {
+      const { data: enqueuedCount } = await admin.rpc(
+        "enqueue_owner_subscription_reminders"
+      )
+      enqueued = Number(enqueuedCount ?? 0)
+    } catch (error) {
+      console.error(
+        "enqueue_owner_subscription_reminders failed",
+        error
+      )
+    }
+
+    // Release rows that have been pending
+    // too long (best effort — a failure
+    // here must not stop the run).
     try {
       await admin.rpc("cancel_stale_messages")
     } catch (error) {
@@ -134,6 +156,7 @@ Deno.serve(async (req: Request) => {
 
   return json({
     dryRun,
+    enqueued,
     dispatched: results.length,
     results,
   })

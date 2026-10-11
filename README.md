@@ -81,6 +81,7 @@ require `VITE_SUPABASE_*` — see the migration plan below.
    - `supabase/migrations/0006_whatsapp_dispatch.sql` (atomic message claiming, daily-cap counter, manual retry, stale sweep)
    - `supabase/migrations/0007_whatsapp_admin_controls.sql` (global + per-gym messaging pause RPCs)
    - `supabase/migrations/0008_whatsapp_verification.sql` (owner number verification state, number-format constraints, owner settings RPC)
+   - `supabase/migrations/0009_owner_subscription_reminders.sql` (7/3/0-day owner renewal reminder enqueuer)
 4. **SQL Editor** → run `supabase/seed.sql` (demo gyms, members, template, counters)
 
 ### 2. Create the login accounts
@@ -217,6 +218,25 @@ supabase secrets set WHATSAPP_VERIFICATION_TEMPLATE="gym_sos_verification"
   suppressed), the global emergency pause, per-gym
   pause switches, and the message log with suppression
   reasons and safe retries of failed messages.
+
+### Owner subscription-expiry reminders (automatic)
+
+Every scheduler run enqueues the 7-, 3- and
+0-day renewal reminders for gyms whose
+subscription ends within the next 7 days, whose
+owner has a verified number with service reminders
+switched on. Each reminder sends on the local
+calendar day `offset` days before the end date,
+at the owner's preferred time. The idempotency
+key embeds the end date, so renewing a
+subscription produces fresh keys (stale reminders
+are cancelled by the gyms-update trigger), and
+repeated enqueuer runs never duplicate a reminder.
+
+The `gym_sos_subscription_expiry` Meta template
+must be created in the Meta business account
+(approved, with three text parameters: gym name,
+end date, days label).
 
 ### WhatsApp gym-owner surfaces
 
