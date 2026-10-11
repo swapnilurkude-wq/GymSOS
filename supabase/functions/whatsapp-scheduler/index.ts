@@ -9,10 +9,12 @@ import { dispatchMessage } from "../_shared/whatsapp/dispatch.ts"
  * suggested: every 15 minutes) or manually.
  *
  * Each run:
- *   1. enqueues due owner subscription
- *      reminders (7/3/0 days — migration
- *      0009; idempotent on the
- *      idempotency key)
+ *   1. enqueues due reminders — owner
+ *      subscription expiry (7/3/0 days,
+ *      migration 0009) and member
+ *      membership expiry (7/3/0 days,
+ *      migration 0010); both idempotent
+ *      on the idempotency key
  *   2. cancels stale rows (pending > 7 days)
  *   3. claims due messages one at a time
  *      (atomic, skip-locked — overlapping
@@ -87,21 +89,34 @@ Deno.serve(async (req: Request) => {
     auth: { persistSession: false },
   })
 
-  // Enqueue the owner subscription-expiry
-  // reminders that are due (idempotent —
-  // repeated runs never duplicate a
-  // reminder). Best effort: a failure
-  // here must not stop the run.
-  let enqueued = 0
+  // Enqueue the expiry reminders that
+  // are due (idempotent — repeated runs
+  // never duplicate a reminder). Best
+  // effort: a failure here must not
+  // stop the run.
+  let enqueuedOwner = 0
+  let enqueuedMember = 0
   if (!dryRun) {
     try {
-      const { data: enqueuedCount } = await admin.rpc(
+      const { data: ownerCount } = await admin.rpc(
         "enqueue_owner_subscription_reminders"
       )
-      enqueued = Number(enqueuedCount ?? 0)
+      enqueuedOwner = Number(ownerCount ?? 0)
     } catch (error) {
       console.error(
         "enqueue_owner_subscription_reminders failed",
+        error
+      )
+    }
+
+    try {
+      const { data: memberCount } = await admin.rpc(
+        "enqueue_membership_expiry_reminders"
+      )
+      enqueuedMember = Number(memberCount ?? 0)
+    } catch (error) {
+      console.error(
+        "enqueue_membership_expiry_reminders failed",
         error
       )
     }
@@ -156,7 +171,8 @@ Deno.serve(async (req: Request) => {
 
   return json({
     dryRun,
-    enqueued,
+    enqueuedOwner,
+    enqueuedMember,
     dispatched: results.length,
     results,
   })

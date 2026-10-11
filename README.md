@@ -82,6 +82,7 @@ require `VITE_SUPABASE_*` — see the migration plan below.
    - `supabase/migrations/0007_whatsapp_admin_controls.sql` (global + per-gym messaging pause RPCs)
    - `supabase/migrations/0008_whatsapp_verification.sql` (owner number verification state, number-format constraints, owner settings RPC)
    - `supabase/migrations/0009_owner_subscription_reminders.sql` (7/3/0-day owner renewal reminder enqueuer)
+   - `supabase/migrations/0010_membership_expiry_reminders.sql` (7/3/0-day member membership expiry reminder enqueuer)
 4. **SQL Editor** → run `supabase/seed.sql` (demo gyms, members, template, counters)
 
 ### 2. Create the login accounts
@@ -183,7 +184,11 @@ supabase secrets set WHATSAPP_VERIFICATION_TEMPLATE="gym_sos_verification"
   outcome in the message outbox, and stamps
   `last_tested_at` so the integration can be activated.
 - **whatsapp-scheduler** — the cron-driven dispatcher.
-  Claims due messages atomically (`FOR UPDATE SKIP
+  Each run enqueues due expiry reminders (owner
+  subscription 7/3/0 days — migration 0009, and
+  member membership 7/3/0 days — migration 0010;
+  both idempotent), cancels stale rows, then claims
+  due messages atomically (`FOR UPDATE SKIP
   LOCKED`, so overlapping runs never double-dispatch),
   re-checks eligibility immediately before every
   delivery, sends, and logs outcomes. Supports
@@ -237,6 +242,25 @@ The `gym_sos_subscription_expiry` Meta template
 must be created in the Meta business account
 (approved, with three text parameters: gym name,
 end date, days label).
+
+### Member membership-expiry reminders (automatic)
+
+The same scheduler run enqueues 7-, 3- and
+0-day reminders for members whose membership ends
+within the next 7 days — only when the gym is
+active, the owner's GymSOS subscription is active,
+the owner enabled membership expiry reminders for
+the gym, and the member opted in to expiry
+reminders with a WhatsApp number on file. Each
+reminder sends at the member's preferred time. The
+idempotency key embeds the end date, so a renewed
+membership produces fresh keys and repeated
+enqueuer runs never duplicate a reminder.
+
+The `gym_sos_membership_expiry` Meta template
+must be created in the Meta business account
+(approved, with three text parameters: member
+name, end date, days label).
 
 ### WhatsApp gym-owner surfaces
 
