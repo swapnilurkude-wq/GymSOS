@@ -14,6 +14,11 @@ platform super-admin (gyms, plans, revenue analytics, subscriptions).
 - **Self-signup with a 10-day free trial** — public signup
   page, automatic account + gym creation, trial countdown on
   the dashboard, upgrade screen after expiry
+- **WhatsApp updates** — verified owner number (6-digit code),
+  category consents, preferred delivery time, per-member
+  opt-in management, automatic 7/3/0-day membership-expiry
+  and subscription-renewal reminders, and the gym's message
+  history
 
 **Super admin**
 - Platform dashboard: MRR, active gyms, member totals, alerts
@@ -23,12 +28,17 @@ platform super-admin (gyms, plans, revenue analytics, subscriptions).
 - **Trial overview** — signup counts, active / expiring /
   expired trials, and a full Trial Signups table (gym, owner,
   mobile, email, signup + trial dates, status)
+- **WhatsApp messaging** — provider connection (Meta Cloud
+  API), connection status, 30-day volume, failures and
+  suppression reasons, the global emergency pause, per-gym
+  pause switches, the message log, and safe manual retries
+  of failed messages
 
 **Platform**
 - Responsive on mobile, tablet, and laptop
 - Dark / light theme
 - Code-split bundles (maps, Excel, PDF load on demand)
-- 116 automated tests (`npm test`) — including the Supabase data-layer
+- 214 automated tests (`npm test`) — including the Supabase data-layer
   paths, exercised against an in-memory client
   (`src/test/supabase-mock.ts`)
 
@@ -123,7 +133,7 @@ rewrites).
 
 ### 5. Deploy the Edge Functions
 
-Six server-side functions (the service role key never
+Seven server-side functions (the service role key never
 reaches the browser):
 
 ```bash
@@ -338,6 +348,72 @@ full dashboard plus a countdown banner. When the end date passes:
   **Subscriptions → Renew / Change Plan** and access is restored
   immediately.
 
+## WhatsApp launch checklist
+
+Follow in order. Messaging is off until the final step —
+no message is ever sent before the integration is
+configured, tested and activated.
+
+**1. Meta business setup** (business.facebook.com)
+- Verify the business and add the WhatsApp phone number
+  (the number shown in Settings → WhatsApp messaging is
+  the Meta phone number **ID**, not the phone itself)
+- Generate a permanent access token (System Users →
+  whatsapp_business_messaging)
+
+**2. Create the three approved templates** — business
+initiated messages require pre-approved templates.
+Create these in Meta (typically approved within hours,
+sometimes days):
+
+| Template | Category | Text parameters |
+| -------- | -------- | --------------- |
+| `gym_sos_verification` | UTILITY | `1` = the 6-digit code |
+| `gym_sos_subscription_expiry` | UTILITY | `1` = gym name, `2` = end date (e.g. "20 Oct 2026"), `3` = days label ("7 days" / "3 days" / "today") |
+| `gym_sos_membership_expiry` | UTILITY | `1` = member name, `2` = end date, `3` = days label |
+
+**3. Database** — run the migrations in order
+(`0001` → `0010`) in the SQL Editor, then `supabase/seed.sql`.
+
+**4. Secrets** —
+`supabase secrets set WHATSAPP_ENCRYPTION_KEY="<random-64-char-string>"`
+(plus `WHATSAPP_VERIFICATION_TEMPLATE` only if you name
+the verification template something other than
+`gym_sos_verification`).
+
+**5. Functions** — deploy all seven (the
+`supabase functions deploy` commands in the
+"Deploy the Edge Functions" section above),
+then schedule the dispatcher: Supabase dashboard →
+Functions → `whatsapp-scheduler` → Configure → Schedule →
+`*/15 * * * *`. (Scheduled Edge Functions require a
+Supabase Pro plan.)
+
+**6. Configure + test + activate** — as the Super Admin:
+Settings → WhatsApp messaging → enter the provider
+credentials → **Send test message** (goes only to the
+configured test recipient) → **Activate messaging**.
+Activation is blocked until a test message succeeds.
+
+**7. Rehearse** — `POST .../functions/v1/whatsapp-scheduler?dry_run=true`
+evaluates everything that would happen and reports it,
+writing nothing and sending nothing.
+
+**8. Owners opt in** — gym owners verify their number
+(Settings → WhatsApp updates) and choose their consents;
+members are opted in per member (Members → WhatsApp
+updates) or at member creation. Only then do reminders
+flow — every send re-checks eligibility immediately
+before delivery.
+
+**Cost expectation:** Meta business-initiated
+conversations in India cost roughly ₹0.30–0.60 (utility)
+to ₹0.60–1.00 (marketing) each. A gym with 500 members
+receiving a daily utility message runs about
+₹4,500–9,000/month. The platform sends nothing while
+`is_active = false`, and the daily send cap (default
+500, platform controls) bounds the worst case per day.
+
 ## Backups
 
 - **Nightly:** `.github/workflows/db-backup.yml` runs `pg_dump`
@@ -363,7 +439,8 @@ failed deployment can never corrupt existing data.
 | Bad migration | Restore the pre-migration `pg_dump` (take one **before** every migration), or use Supabase's point-in-time recovery |
 | Bad app deploy | `vercel rollback` (instant, previous deployment) or `git revert` + push |
 | WhatsApp misbehaviour | Set `whatsapp_provider_config.is_active = false` — every send path checks it before dispatching, so this stops all messaging immediately without touching any other feature |
-| Remove the feature entirely | Drop the new tables/functions from `0005_whatsapp_messaging.sql` — they are self-contained; existing app behaviour is unaffected |
+| Message flood / runaway costs | The Super Admin global pause (Settings → Messaging page) stops all dispatch; per-gym pauses stop a single gym's member messages; the daily send cap bounds the worst case per day |
+| Remove the feature entirely | Drop the new tables/functions from `0005_whatsapp_messaging.sql` (plus `0006`–`0010`, which only add functions on top) — they are self-contained; existing app behaviour is unaffected |
 
 ## Security notes
 
@@ -392,3 +469,11 @@ failed deployment can never corrupt existing data.
 - WhatsApp messaging ships disabled: `is_active = false` on the
   provider config plus the send-time eligibility check means no
   message is sent until the integration is configured and tested.
+- Verification codes are never stored — only their SHA-256
+  hash (`0008`); a code is valid for 10 minutes and survives
+  at most 5 wrong attempts. Code requests are rate-limited to
+  one per minute.
+- Message logs and event details carry reason codes, provider
+  error codes and delivery metadata only — never fitness
+  photos, health data or other member PII beyond the
+  destination phone number.
